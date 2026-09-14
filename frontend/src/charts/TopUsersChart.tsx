@@ -1,4 +1,4 @@
-import { Bar, BarChart, LabelList, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import { Bar, BarChart, Cell, LabelList, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { RankedPlaytime } from '../types';
 import { formatDuration } from '../utils/time';
 
@@ -11,6 +11,7 @@ interface TopUsersChartProps {
   height?: number;
   showValues?: boolean;
   barColor?: string;
+  rowColorsByName?: Record<string, string>;
 }
 
 export default function TopUsersChart({
@@ -19,6 +20,7 @@ export default function TopUsersChart({
   height = 320,
   showValues = false,
   barColor = '#22D3EE',
+  rowColorsByName,
 }: TopUsersChartProps) {
   const yAxisWidth = Math.min(
     280,
@@ -41,6 +43,9 @@ export default function TopUsersChart({
             contentStyle={{ background: '#0b1117', border: '1px solid #1f2937' }}
           />
           <Bar dataKey="total_seconds" fill={barColor} radius={[6, 6, 6, 6]}>
+            {data.map((row) => (
+              <Cell key={`user-${row.id}`} fill={rowColorsByName?.[row.name] || barColor} />
+            ))}
             {showValues && (
               <LabelList dataKey="total_seconds" position="right" formatter={formatLabelDuration} fill="#cbd5e1" />
             )}

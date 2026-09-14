@@ -72,9 +72,9 @@ export default function TopGamesChart({
           {splitMode && splitPlayers && splitPlayers.length > 0 ? (
             <>
               {showLegend && <Legend wrapperStyle={{ color: '#cbd5e1' }} />}
-              {splitPlayers.map((player) => (
-                <Bar key={player.key} dataKey={player.key} stackId="players" fill={player.color} onClick={handleBarClick}>
-                  {showValues && (
+              {splitPlayers.map((player, idx) => (
+                <Bar key={player.key} dataKey={player.key} name={player.name} stackId="players" fill={player.color} onClick={handleBarClick}>
+                  {showValues && idx === splitPlayers.length - 1 && (
                     <LabelList
                       dataKey={player.key}
                       position="right"

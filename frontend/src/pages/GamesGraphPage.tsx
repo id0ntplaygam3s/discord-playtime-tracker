@@ -15,7 +15,7 @@ export default function GamesGraphPage() {
   const [selectedUsers, setSelectedUsers] = useState<any[]>([]);
   const [splitByPlayer, setSplitByPlayer] = useState(false);
   const [showLegend, setShowLegend] = useState(true);
-  const [showValues, setShowValues] = useState(false);
+  const [showValues, setShowValues] = useState(true);
   const [splitRows, setSplitRows] = useState<Array<Record<string, string | number>>>([]);
   const [splitPlayers, setSplitPlayers] = useState<Array<{ key: string; name: string; color: string }>>([]);
   const [error, setError] = useState<string | null>(null);
@@ -128,6 +128,16 @@ export default function GamesGraphPage() {
   const totalSeconds = useMemo(() => rows.reduce((sum, row) => sum + row.total_seconds, 0), [rows]);
   const topGame = rows[0];
   const selectedGame = rows.find((r) => r.id === selectedGameId);
+  const selectedGameColors = useMemo(
+    () =>
+      splitByPlayer
+        ? splitPlayers.reduce((acc, player) => {
+            acc[player.name] = player.color;
+            return acc;
+          }, {} as Record<string, string>)
+        : undefined,
+    [splitByPlayer, splitPlayers]
+  );
 
   return (
     <div className="page-grid">
@@ -197,6 +207,7 @@ export default function GamesGraphPage() {
             title={selectedGame ? `Most Active In ${selectedGame.name}` : 'Select a game bar for player breakdown'}
             height={360}
             showValues={showValues}
+            rowColorsByName={selectedGameColors}
           />
         </>
       )}

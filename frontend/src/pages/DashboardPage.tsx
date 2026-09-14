@@ -18,7 +18,7 @@ export default function DashboardPage() {
   const [selectedGameError, setSelectedGameError] = useState<string | null>(null);
   const [splitByPlayer, setSplitByPlayer] = useState(false);
   const [showLegend, setShowLegend] = useState(true);
-  const [showValues, setShowValues] = useState(false);
+  const [showValues, setShowValues] = useState(true);
   const [splitRows, setSplitRows] = useState<Array<Record<string, string | number>>>([]);
   const [splitPlayers, setSplitPlayers] = useState<Array<{ key: string; name: string; color: string }>>([]);
   const [splitError, setSplitError] = useState<string | null>(null);
@@ -33,6 +33,16 @@ export default function DashboardPage() {
 
   const selectedGame = useMemo(() => games.find((g) => g.id === selectedGameId), [games, selectedGameId]);
   const selectedGameTopPlayer = selectedGameUsers[0];
+  const selectedGameColors = useMemo(
+    () =>
+      splitByPlayer
+        ? splitPlayers.reduce((acc, player) => {
+            acc[player.name] = player.color;
+            return acc;
+          }, {} as Record<string, string>)
+        : undefined,
+    [splitByPlayer, splitPlayers]
+  );
 
   useEffect(() => {
     if (games.length === 0) {
@@ -197,6 +207,7 @@ export default function DashboardPage() {
           height={320}
           showValues={showValues}
           barColor="#22D3EE"
+          rowColorsByName={selectedGameColors}
         />
       </section>
 

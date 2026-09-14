@@ -11,7 +11,7 @@ export default function GamesPage() {
   const [source, setSource] = useState<SourceFilter>('combined');
   const [selectedGameId, setSelectedGameId] = useState<number>(0);
   const [selectedUsers, setSelectedUsers] = useState<any[]>([]);
-  const [showValues, setShowValues] = useState(false);
+  const [showValues, setShowValues] = useState(true);
   const [loadingBreakdown, setLoadingBreakdown] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
