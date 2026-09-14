@@ -41,9 +41,9 @@ class DiscordTrackerBot(discord.Client):
             db_guild = get_or_create_guild(db, guild.id, guild.name)
             now = datetime.now(timezone.utc)
             for member in guild.members:
-                game = self._extract_game(member.activities)
-                if not game:
+                if member.bot:
                     continue
+
                 user = get_or_create_user(
                     db,
                     db_guild.id,
@@ -52,6 +52,10 @@ class DiscordTrackerBot(discord.Client):
                     member.display_name,
                     str(member.display_avatar.url) if member.display_avatar else None,
                 )
+
+                game = self._extract_game(member.activities)
+                if not game:
+                    continue
                 db_game = get_or_create_game(db, game["name"], game.get("application_id"), None)
                 start_session_if_needed(db, db_guild.id, user.id, db_game.id, db_game.discord_application_id, started_at=now)
         finally:
@@ -62,6 +66,8 @@ class DiscordTrackerBot(discord.Client):
 
     async def on_presence_update(self, before: discord.Member, after: discord.Member):
         if not after.guild or after.guild.id != self.settings.discord_guild_id:
+            return
+        if after.bot:
             return
 
         before_game = self._extract_game(before.activities)

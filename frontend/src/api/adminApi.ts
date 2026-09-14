@@ -90,6 +90,11 @@ export async function listUsers(guildId: number) {
   return data;
 }
 
+export async function deleteUser(guildId: number, userId: number) {
+  const { data } = await client.delete(`/users/${userId}`, { params: { guild_id: guildId } });
+  return data;
+}
+
 export async function listGames(guildId: number) {
   const { data } = await client.get('/games', { params: { guild_id: guildId, page: 1, page_size: 200 } });
   return data;

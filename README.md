@@ -7,6 +7,10 @@ It combines:
 - Historical/manual playtime entries
 - Immutable manual adjustments
 
+Tracker behavior highlights:
+- Bot accounts are ignored for tracking and session logging.
+- On startup, all non-bot guild members are synchronized (including offline members) so user lists are complete.
+
 Totals are derived from source records and remain auditable.
 
 ## Legal Documents
@@ -170,6 +174,10 @@ On login page:
 - `Admin Sign In` uses `ADMIN_USERNAME` and `ADMIN_PASSWORD`.
 
 Admin-only pages are hidden/blocked for viewer sessions.
+
+User cleanup:
+- Admins can delete users from the Users page.
+- Deleting a user removes associated tracked sessions/manual records/adjustments via database cascade.
 
 ## 10. Steam Profile Imports
 Steam imports are optional and admin-only.

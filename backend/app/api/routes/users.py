@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import desc, func
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_current_user
+from app.api.deps import get_current_user, require_admin
 from app.api.guilds import resolve_guild_id
 from app.db.session import get_db
 from app.models import ActivitySession, Game, ManualPlaytime, PlaytimeAdjustment, User
@@ -170,3 +170,20 @@ def user_sessions(
         }
         for s, g in rows
     ]
+
+
+@router.delete("/{user_id}")
+def delete_user(
+    user_id: int,
+    guild_id: int = Query(default=0),
+    _=Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    guild_id = resolve_guild_id(db, guild_id)
+    user = db.query(User).filter(User.id == user_id, User.guild_id == guild_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    db.delete(user)
+    db.commit()
+    return {"ok": True, "deleted_user_id": user_id}
