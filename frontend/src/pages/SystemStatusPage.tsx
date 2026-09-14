@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import dayjs from 'dayjs';
 import { getSystemStatus } from '../api/adminApi';
+import { formatDuration } from '../utils/time';
 
 export default function SystemStatusPage() {
   const [status, setStatus] = useState<any>(null);
@@ -30,7 +31,7 @@ export default function SystemStatusPage() {
         <div><strong>Health:</strong> {status.status}</div>
         <div><strong>Discord:</strong> {status.discord_status}</div>
         <div><strong>Database:</strong> {status.database_status}</div>
-        <div><strong>Bot uptime:</strong> {status.bot_uptime_seconds ?? 0}s</div>
+        <div><strong>Bot uptime:</strong> {formatDuration(Number(status.bot_uptime_seconds || 0))}</div>
         <div><strong>Active sessions:</strong> {status.active_sessions}</div>
         <div><strong>Last Discord event:</strong> {status.last_discord_event_at ? dayjs(status.last_discord_event_at).format('YYYY-MM-DD HH:mm:ss') : '-'}</div>
         <div><strong>Last DB write:</strong> {status.last_database_write_at ? dayjs(status.last_database_write_at).format('YYYY-MM-DD HH:mm:ss') : '-'}</div>

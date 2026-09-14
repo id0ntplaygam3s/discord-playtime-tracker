@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import client from '../api/client';
-import { formatDuration } from '../utils/time';
+import { formatDuration, formatSignedDuration } from '../utils/time';
 
 export default function UserProfilePage() {
   const { userId } = useParams();
@@ -43,7 +43,7 @@ export default function UserProfilePage() {
           <div><strong>Combined:</strong> {formatDuration(profile.total_seconds)}</div>
           <div><strong>Automatic:</strong> {formatDuration(profile.automatic_seconds)}</div>
           <div><strong>Historical:</strong> {formatDuration(profile.historical_seconds)}</div>
-          <div><strong>Adjustments:</strong> {formatDuration(Math.abs(profile.adjustment_seconds))}</div>
+          <div><strong>Adjustments:</strong> {formatSignedDuration(profile.adjustment_seconds)}</div>
         </div>
       </div>
 

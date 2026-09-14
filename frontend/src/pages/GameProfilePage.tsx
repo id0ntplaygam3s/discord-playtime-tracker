@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import client from '../api/client';
-import { formatDuration } from '../utils/time';
+import { formatDuration, formatSignedDuration } from '../utils/time';
 
 export default function GameProfilePage() {
   const { gameId } = useParams();
@@ -43,7 +43,7 @@ export default function GameProfilePage() {
           <div><strong>Combined:</strong> {formatDuration(profile.total_seconds)}</div>
           <div><strong>Automatic:</strong> {formatDuration(profile.automatic_seconds)}</div>
           <div><strong>Historical:</strong> {formatDuration(profile.historical_seconds)}</div>
-          <div><strong>Adjustments:</strong> {formatDuration(Math.abs(profile.adjustment_seconds))}</div>
+          <div><strong>Adjustments:</strong> {formatSignedDuration(profile.adjustment_seconds)}</div>
           <div><strong>Unique players:</strong> {profile.unique_players}</div>
         </div>
       </div>

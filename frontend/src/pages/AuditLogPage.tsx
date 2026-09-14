@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import dayjs from 'dayjs';
 import { getAudit } from '../api/adminApi';
+import { formatSignedDuration } from '../utils/time';
 
 export default function AuditLogPage() {
   const guildId = Number(import.meta.env.VITE_GUILD_ID || 0);
@@ -32,7 +33,7 @@ export default function AuditLogPage() {
               <th>User</th>
               <th>Game</th>
               <th>Action</th>
-              <th>Change (seconds)</th>
+              <th>Change</th>
               <th>Reason</th>
             </tr>
           </thead>
@@ -44,7 +45,7 @@ export default function AuditLogPage() {
                 <td>{row.user || '-'}</td>
                 <td>{row.game || '-'}</td>
                 <td>{row.action}</td>
-                <td>{row.change_seconds ?? '-'}</td>
+                <td>{typeof row.change_seconds === 'number' ? formatSignedDuration(row.change_seconds) : '-'}</td>
                 <td>{row.reason || '-'}</td>
               </tr>
             ))}

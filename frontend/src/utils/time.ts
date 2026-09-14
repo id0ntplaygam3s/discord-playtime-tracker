@@ -9,3 +9,9 @@ export function formatDuration(totalSeconds: number): string {
   }
   return `${hours}h ${minutes}m`;
 }
+
+export function formatSignedDuration(totalSeconds: number): string {
+  const value = Math.floor(Number(totalSeconds || 0));
+  if (value === 0) return '0h 0m';
+  return `${value < 0 ? '-' : '+'}${formatDuration(Math.abs(value))}`;
+}

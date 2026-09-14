@@ -22,7 +22,7 @@ export default function ActivityLineChart({ data, title = 'Activity Over Time', 
         <LineChart data={mapped}>
           <CartesianGrid strokeDasharray="4 4" stroke="#1F2937" />
           <XAxis dataKey="label" stroke="#94A3B8" />
-          <YAxis stroke="#94A3B8" />
+          <YAxis stroke="#94A3B8" width={88} tickFormatter={(value) => formatDuration(Number(value || 0))} />
           <Tooltip formatter={(value: number) => [formatDuration(value), 'Total play time']} />
           <Line type="monotone" dataKey="total_seconds" stroke="#F97316" strokeWidth={3} dot={false} />
         </LineChart>

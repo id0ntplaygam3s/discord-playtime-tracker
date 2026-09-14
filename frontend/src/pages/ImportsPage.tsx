@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { csvImport, csvPreview, listUsers, steamImport, steamPreview } from '../api/adminApi';
+import { formatDuration } from '../utils/time';
 
 interface SteamPreviewGame {
   appid: number;
@@ -174,7 +175,7 @@ export default function ImportsPage() {
                 <tr>
                   <th>Game</th>
                   <th>App ID</th>
-                  <th>Minutes</th>
+                  <th>Playtime</th>
                 </tr>
               </thead>
               <tbody>
@@ -182,7 +183,7 @@ export default function ImportsPage() {
                   <tr key={g.appid}>
                     <td>{g.name}</td>
                     <td>{g.appid}</td>
-                    <td>{g.playtime_minutes}</td>
+                    <td title={`${g.playtime_minutes} minutes`}>{formatDuration(g.playtime_minutes * 60)}</td>
                   </tr>
                 ))}
               </tbody>
