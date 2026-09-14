@@ -1,16 +1,25 @@
-import { Bar, BarChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import { Bar, BarChart, LabelList, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { RankedPlaytime } from '../types';
 import { formatDuration } from '../utils/time';
 
 const truncate = (label: string, max = 22) => (label.length <= max ? label : `${label.slice(0, max - 1)}...`);
+const formatLabelDuration = (value: unknown) => formatDuration(Number(value || 0));
 
 interface TopUsersChartProps {
   data: RankedPlaytime[];
   title?: string;
   height?: number;
+  showValues?: boolean;
+  barColor?: string;
 }
 
-export default function TopUsersChart({ data, title = 'Most Active Players', height = 320 }: TopUsersChartProps) {
+export default function TopUsersChart({
+  data,
+  title = 'Most Active Players',
+  height = 320,
+  showValues = false,
+  barColor = '#22D3EE',
+}: TopUsersChartProps) {
   const yAxisWidth = Math.min(
     280,
     Math.max(
@@ -31,7 +40,11 @@ export default function TopUsersChart({ data, title = 'Most Active Players', hei
             labelFormatter={(label) => String(label)}
             contentStyle={{ background: '#0b1117', border: '1px solid #1f2937' }}
           />
-          <Bar dataKey="total_seconds" fill="#22D3EE" radius={[6, 6, 6, 6]} />
+          <Bar dataKey="total_seconds" fill={barColor} radius={[6, 6, 6, 6]}>
+            {showValues && (
+              <LabelList dataKey="total_seconds" position="right" formatter={formatLabelDuration} fill="#cbd5e1" />
+            )}
+          </Bar>
         </BarChart>
       </ResponsiveContainer>
     </div>

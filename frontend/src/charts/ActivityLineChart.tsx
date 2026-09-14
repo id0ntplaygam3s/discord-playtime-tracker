@@ -3,16 +3,22 @@ import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YA
 import { TimeBucketPoint } from '../types';
 import { formatDuration } from '../utils/time';
 
-export default function ActivityLineChart({ data }: { data: TimeBucketPoint[] }) {
+interface ActivityLineChartProps {
+  data: TimeBucketPoint[];
+  title?: string;
+  height?: number;
+}
+
+export default function ActivityLineChart({ data, title = 'Activity Over Time', height = 280 }: ActivityLineChartProps) {
   const mapped = data.map((d) => ({
     ...d,
     label: dayjs(d.bucket).format('DD MMM'),
   }));
 
   return (
-    <div className="panel">
-      <h3>Activity Over Time</h3>
-      <ResponsiveContainer width="100%" height={280}>
+    <div className="panel panel-chart">
+      <h3>{title}</h3>
+      <ResponsiveContainer width="100%" height={height}>
         <LineChart data={mapped}>
           <CartesianGrid strokeDasharray="4 4" stroke="#1F2937" />
           <XAxis dataKey="label" stroke="#94A3B8" />

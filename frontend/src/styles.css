@@ -165,6 +165,7 @@ h3 {
   display: flex;
   align-items: center;
   gap: 12px;
+  flex-wrap: wrap;
 }
 
 select,
@@ -183,7 +184,7 @@ button {
 
 .stat-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   gap: 14px;
 }
 
@@ -221,6 +222,24 @@ button {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 20px;
+}
+
+.split-stack {
+  display: grid;
+  gap: 12px;
+}
+
+.split-stack .panel {
+  min-height: 0;
+}
+
+.panel-compact {
+  max-height: 240px;
+  overflow: auto;
+}
+
+.dashboard-bottom {
+  align-items: start;
 }
 
 .panel {

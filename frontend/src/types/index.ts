@@ -18,6 +18,12 @@ export interface RankedPlaytime {
   total_seconds: number;
 }
 
+export interface GameUserPlaytime {
+  id: number;
+  name: string;
+  total_seconds: number;
+}
+
 export interface TimeBucketPoint {
   bucket: string;
   total_seconds: number;

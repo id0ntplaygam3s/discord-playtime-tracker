@@ -3,10 +3,16 @@ import relativeTime from 'dayjs/plugin/relativeTime';
 
 dayjs.extend(relativeTime);
 
-export default function CurrentSessions({ sessions }: { sessions: any[] }) {
+interface CurrentSessionsProps {
+  sessions: any[];
+  title?: string;
+  compact?: boolean;
+}
+
+export default function CurrentSessions({ sessions, title = 'Currently Playing', compact = false }: CurrentSessionsProps) {
   return (
-    <div className="panel">
-      <h3>Currently Playing</h3>
+    <div className={`panel ${compact ? 'panel-compact' : ''}`}>
+      <h3>{title}</h3>
       <div className="list-grid">
         {sessions.length === 0 && <div className="empty">No active sessions right now.</div>}
         {sessions.map((s) => (

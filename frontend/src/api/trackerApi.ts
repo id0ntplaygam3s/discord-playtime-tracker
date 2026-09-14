@@ -1,5 +1,5 @@
 import client from './client';
-import { OverviewStats, RankedPlaytime, SourceFilter, TimeBucketPoint } from '../types';
+import { GameUserPlaytime, OverviewStats, RankedPlaytime, SourceFilter, TimeBucketPoint } from '../types';
 
 export async function login(username: string, password: string): Promise<string> {
   const { data } = await client.post('/auth/login', { username, password });
@@ -33,5 +33,10 @@ export async function getDaily(guildId: number): Promise<TimeBucketPoint[]> {
 
 export async function getActiveSessions(guildId: number): Promise<any[]> {
   const { data } = await client.get('/activity/active', { params: { guild_id: guildId } });
+  return data;
+}
+
+export async function getGameUsers(guildId: number, gameId: number): Promise<GameUserPlaytime[]> {
+  const { data } = await client.get(`/games/${gameId}/users`, { params: { guild_id: guildId } });
   return data;
 }
