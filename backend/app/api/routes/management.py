@@ -3,9 +3,11 @@ from __future__ import annotations
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from app.api.deps import require_admin
+from app.api.guilds import resolve_guild_id
 from app.core.config import get_settings
 from app.db.session import get_db
 from app.models import Game, ManualPlaytime, ManualSource, User
@@ -36,10 +38,11 @@ router = APIRouter(prefix="/management", tags=["management"])
 
 @router.post("/manual-playtime")
 def add_manual_playtime(payload: ManualPlaytimeCreate, admin=Depends(require_admin), db: Session = Depends(get_db)):
+    guild_id = resolve_guild_id(db, payload.guild_id)
     duration = to_seconds(payload.hours, payload.minutes)
     record = create_manual_playtime(
         db,
-        guild_id=payload.guild_id,
+        guild_id=guild_id,
         user_id=payload.user_id,
         game_id=payload.game_id,
         duration_seconds=duration,
@@ -52,11 +55,12 @@ def add_manual_playtime(payload: ManualPlaytimeCreate, admin=Depends(require_adm
 
 @router.post("/adjustments")
 def add_adjustment(payload: AdjustmentCreate, admin=Depends(require_admin), db: Session = Depends(get_db)):
+    guild_id = resolve_guild_id(db, payload.guild_id)
     seconds = to_seconds(abs(payload.hours), abs(payload.minutes)) * (1 if payload.sign >= 0 else -1)
     try:
         row = create_adjustment(
             db,
-            guild_id=payload.guild_id,
+            guild_id=guild_id,
             user_id=payload.user_id,
             game_id=payload.game_id,
             adjustment_seconds=seconds,
@@ -70,10 +74,11 @@ def add_adjustment(payload: AdjustmentCreate, admin=Depends(require_admin), db: 
 
 @router.post("/set-total")
 def set_total(payload: SetAbsoluteTotalRequest, admin=Depends(require_admin), db: Session = Depends(get_db)):
+    guild_id = resolve_guild_id(db, payload.guild_id)
     try:
         adjustment = set_absolute_total(
             db,
-            guild_id=payload.guild_id,
+            guild_id=guild_id,
             user_id=payload.user_id,
             game_id=payload.game_id,
             desired_total_seconds=payload.desired_total_seconds,
@@ -101,7 +106,7 @@ def csv_import(
     admin=Depends(require_admin),
     db: Session = Depends(get_db),
 ):
-    guild_id = int(payload["guild_id"])
+    guild_id = resolve_guild_id(db, int(payload.get("guild_id") or 0))
     all_or_nothing = bool(payload.get("all_or_nothing", True))
     rows = payload.get("rows", [])
 
@@ -111,11 +116,19 @@ def csv_import(
 
     try:
         for idx, row in enumerate(rows, start=1):
-            user = (
-                db.query(User)
-                .filter(User.guild_id == guild_id, User.display_name == row["discord_user"])
-                .first()
-            )
+            discord_user_id = row.get("discord_user_id")
+            user = None
+            if discord_user_id is not None:
+                user = db.query(User).filter(User.guild_id == guild_id, User.discord_user_id == int(discord_user_id)).first()
+            if not user and row.get("discord_user"):
+                user = (
+                    db.query(User)
+                    .filter(
+                        User.guild_id == guild_id,
+                        or_(User.display_name == row["discord_user"], User.username == row["discord_user"]),
+                    )
+                    .first()
+                )
             if not user:
                 errors.append({"row": idx, "error": "User not found"})
                 if all_or_nothing:
@@ -189,11 +202,12 @@ def steam_preview(
     _=Depends(require_admin),
     db: Session = Depends(get_db),
 ):
+    guild_id = resolve_guild_id(db, payload.guild_id)
     settings = get_settings()
     if not settings.steam_api_key:
         raise HTTPException(status_code=400, detail="STEAM_API_KEY is not configured")
 
-    user = db.query(User).filter(User.id == payload.user_id, User.guild_id == payload.guild_id).first()
+    user = db.query(User).filter(User.id == payload.user_id, User.guild_id == guild_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
@@ -227,11 +241,12 @@ def steam_import(
     admin=Depends(require_admin),
     db: Session = Depends(get_db),
 ):
+    guild_id = resolve_guild_id(db, payload.guild_id)
     settings = get_settings()
     if not settings.steam_api_key:
         raise HTTPException(status_code=400, detail="STEAM_API_KEY is not configured")
 
-    user = db.query(User).filter(User.id == payload.user_id, User.guild_id == payload.guild_id).first()
+    user = db.query(User).filter(User.id == payload.user_id, User.guild_id == guild_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
@@ -252,7 +267,7 @@ def steam_import(
             replaced = (
                 db.query(ManualPlaytime)
                 .filter(
-                    ManualPlaytime.guild_id == payload.guild_id,
+                    ManualPlaytime.guild_id == guild_id,
                     ManualPlaytime.user_id == payload.user_id,
                     ManualPlaytime.source == ManualSource.imported,
                     ManualPlaytime.deleted_at.is_(None),
@@ -266,7 +281,7 @@ def steam_import(
             note = f"{import_tag} steam_appid={game.appid} profile={preview.profile_label}"
             create_manual_playtime(
                 db,
-                guild_id=payload.guild_id,
+                guild_id=guild_id,
                 user_id=payload.user_id,
                 game_id=db_game.id,
                 duration_seconds=game.playtime_minutes * 60,
@@ -279,7 +294,7 @@ def steam_import(
 
         write_audit_log(
             db,
-            guild_id=payload.guild_id,
+            guild_id=guild_id,
             action=AuditAction.csv_import,
             admin_user_id=admin.id,
             target_user_id=payload.user_id,

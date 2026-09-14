@@ -5,6 +5,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user
+from app.api.guilds import resolve_guild_id
 from app.db.session import get_db
 from app.models import ActivitySession, Game, ManualPlaytime, PlaytimeAdjustment, User
 
@@ -77,11 +78,12 @@ def _per_user_game_totals(db: Session, guild_id: int, user_ids: list[int]):
 
 @router.get("/users")
 def compare_users(
-    guild_id: int = Query(...),
+    guild_id: int = Query(default=0),
     user_ids: list[int] = Query(...),
     _: object = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    guild_id = resolve_guild_id(db, guild_id)
     user_rows = (
         db.query(User.id, User.display_name)
         .filter(User.guild_id == guild_id, User.id.in_(user_ids), User.is_hidden.is_(False))
@@ -128,11 +130,12 @@ def compare_users(
 
 @router.get("/shared-games")
 def shared_games(
-    guild_id: int = Query(...),
+    guild_id: int = Query(default=0),
     user_ids: list[int] = Query(...),
     _: object = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    guild_id = resolve_guild_id(db, guild_id)
     rows = _per_user_game_totals(db, guild_id, user_ids)
 
     per_game: dict[int, dict] = {}

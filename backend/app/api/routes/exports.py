@@ -8,6 +8,7 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
 from app.api.deps import require_admin
+from app.api.guilds import resolve_guild_id
 from app.db.session import get_db
 from app.models import ActivitySession, Game, ManualPlaytime, PlaytimeAdjustment, User
 
@@ -29,7 +30,8 @@ def _stream_csv(rows: list[dict], filename: str) -> StreamingResponse:
 
 
 @router.get("/users")
-def export_users(guild_id: int = Query(...), _=Depends(require_admin), db: Session = Depends(get_db)):
+def export_users(guild_id: int = Query(default=0), _=Depends(require_admin), db: Session = Depends(get_db)):
+    guild_id = resolve_guild_id(db, guild_id)
     rows = db.query(User).filter(User.guild_id == guild_id).all()
     payload = [{"id": u.id, "discord_user_id": u.discord_user_id, "display_name": u.display_name} for u in rows]
     return _stream_csv(payload, "users.csv")
@@ -43,7 +45,8 @@ def export_games(_=Depends(require_admin), db: Session = Depends(get_db)):
 
 
 @router.get("/sessions")
-def export_sessions(guild_id: int = Query(...), _=Depends(require_admin), db: Session = Depends(get_db)):
+def export_sessions(guild_id: int = Query(default=0), _=Depends(require_admin), db: Session = Depends(get_db)):
+    guild_id = resolve_guild_id(db, guild_id)
     rows = db.query(ActivitySession).filter(ActivitySession.guild_id == guild_id).all()
     payload = [
         {
@@ -59,7 +62,8 @@ def export_sessions(guild_id: int = Query(...), _=Depends(require_admin), db: Se
 
 
 @router.get("/manual")
-def export_manual(guild_id: int = Query(...), _=Depends(require_admin), db: Session = Depends(get_db)):
+def export_manual(guild_id: int = Query(default=0), _=Depends(require_admin), db: Session = Depends(get_db)):
+    guild_id = resolve_guild_id(db, guild_id)
     rows = db.query(ManualPlaytime).filter(ManualPlaytime.guild_id == guild_id).all()
     payload = [
         {
@@ -76,7 +80,8 @@ def export_manual(guild_id: int = Query(...), _=Depends(require_admin), db: Sess
 
 
 @router.get("/adjustments")
-def export_adjustments(guild_id: int = Query(...), _=Depends(require_admin), db: Session = Depends(get_db)):
+def export_adjustments(guild_id: int = Query(default=0), _=Depends(require_admin), db: Session = Depends(get_db)):
+    guild_id = resolve_guild_id(db, guild_id)
     rows = db.query(PlaytimeAdjustment).filter(PlaytimeAdjustment.guild_id == guild_id).all()
     payload = [
         {

@@ -234,3 +234,37 @@ def test_steam_import_creates_manual_rows(client, db_session, monkeypatch):
     assert len(rows) == 2
     assert all(row.source == ManualSource.imported for row in rows)
     assert all((row.note or '').startswith('[steam-import:76561198000000000]') for row in rows)
+
+
+def test_csv_import_matches_discord_user_id(client, db_session):
+    from app.models import ManualPlaytime
+
+    headers = _auth_header(client)
+    john = User(guild_id=1, discord_user_id=994001, username='john4', display_name='John Four')
+    db_session.add(john)
+    db_session.commit()
+
+    payload = {
+        'guild_id': 1,
+        'all_or_nothing': True,
+        'rows': [
+            {
+                'discord_user': '',
+                'discord_user_id': 994001,
+                'game': 'Minecraft',
+                'hours': 2,
+                'minutes': 30,
+                'source': 'historical',
+                'note': 'id based import',
+            }
+        ],
+    }
+
+    resp = client.post('/api/management/csv/import', json=payload, headers=headers)
+    assert resp.status_code == 200
+    assert resp.json()['imported'] == 1
+
+    row = db_session.query(ManualPlaytime).first()
+    assert row is not None
+    assert row.user_id == john.id
+    assert row.duration_seconds == (2 * 3600) + (30 * 60)

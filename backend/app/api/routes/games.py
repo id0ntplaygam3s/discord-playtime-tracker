@@ -3,6 +3,7 @@ from sqlalchemy import desc, func
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user, require_admin
+from app.api.guilds import resolve_guild_id
 from app.db.session import get_db
 from app.models import ActivitySession, AuditAction, Game, GameAlias, ManualPlaytime, PlaytimeAdjustment, User
 from app.services.session_service import write_audit_log
@@ -29,12 +30,13 @@ def _game_has_guild_data(db: Session, guild_id: int, game_id: int) -> bool:
 
 @router.get("")
 def list_games(
-    guild_id: int = Query(...),
+    guild_id: int = Query(default=0),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100),
     _: object = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    guild_id = resolve_guild_id(db, guild_id)
     offset = (page - 1) * page_size
     rows = (
         db.query(Game)
@@ -59,10 +61,11 @@ def list_games(
 @router.get("/{game_id}")
 def game_profile(
     game_id: int,
-    guild_id: int = Query(...),
+    guild_id: int = Query(default=0),
     _: object = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    guild_id = resolve_guild_id(db, guild_id)
     game = db.query(Game).filter(Game.id == game_id).first()
     if not game:
         raise HTTPException(status_code=404, detail="Game not found")
@@ -108,10 +111,11 @@ def game_profile(
 @router.get("/{game_id}/users")
 def game_users(
     game_id: int,
-    guild_id: int = Query(...),
+    guild_id: int = Query(default=0),
     _: object = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    guild_id = resolve_guild_id(db, guild_id)
     has_guild_data = _game_has_guild_data(db, guild_id, game_id)
     if not has_guild_data:
         raise HTTPException(status_code=404, detail="Game not found")
@@ -167,12 +171,13 @@ def game_users(
 @router.get("/{game_id}/sessions")
 def game_sessions(
     game_id: int,
-    guild_id: int = Query(...),
+    guild_id: int = Query(default=0),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100),
     _: object = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    guild_id = resolve_guild_id(db, guild_id)
     has_guild_data = _game_has_guild_data(db, guild_id, game_id)
     if not has_guild_data:
         raise HTTPException(status_code=404, detail="Game not found")
@@ -200,9 +205,7 @@ def rename_game(
     admin=Depends(require_admin),
     db: Session = Depends(get_db),
 ):
-    guild_id = int(payload.get("guild_id") or 0)
-    if guild_id <= 0:
-        raise HTTPException(status_code=400, detail="guild_id is required")
+    guild_id = resolve_guild_id(db, int(payload.get("guild_id") or 0))
 
     game = db.query(Game).filter(Game.id == game_id).first()
     if not game:
@@ -231,10 +234,11 @@ def rename_game(
 @router.get("/{game_id}/aliases")
 def list_game_aliases(
     game_id: int,
-    guild_id: int = Query(...),
+    guild_id: int = Query(default=0),
     _: object = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    guild_id = resolve_guild_id(db, guild_id)
     game = db.query(Game).filter(Game.id == game_id).first()
     if not game or not _game_has_guild_data(db, guild_id, game_id):
         raise HTTPException(status_code=404, detail="Game not found")
@@ -250,10 +254,8 @@ def add_game_alias(
     admin=Depends(require_admin),
     db: Session = Depends(get_db),
 ):
-    guild_id = int(payload.get("guild_id") or 0)
+    guild_id = resolve_guild_id(db, int(payload.get("guild_id") or 0))
     alias = (payload.get("alias") or "").strip()
-    if guild_id <= 0:
-        raise HTTPException(status_code=400, detail="guild_id is required")
     if not alias:
         raise HTTPException(status_code=400, detail="alias is required")
 
@@ -291,13 +293,11 @@ def merge_games(
     admin=Depends(require_admin),
     db: Session = Depends(get_db),
 ):
-    guild_id = int(payload.get("guild_id") or 0)
+    guild_id = resolve_guild_id(db, int(payload.get("guild_id") or 0))
     source_game_id = int(payload.get("source_game_id") or 0)
     target_game_id = int(payload.get("target_game_id") or 0)
     reason = (payload.get("reason") or "Merged duplicate game").strip()
 
-    if guild_id <= 0:
-        raise HTTPException(status_code=400, detail="guild_id is required")
     if source_game_id <= 0 or target_game_id <= 0 or source_game_id == target_game_id:
         raise HTTPException(status_code=400, detail="source_game_id and target_game_id must be different positive values")
 

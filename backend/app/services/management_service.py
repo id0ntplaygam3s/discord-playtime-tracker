@@ -137,13 +137,24 @@ def parse_csv_preview(content: bytes) -> tuple[list[dict], list[ImportRowError]]
     rows: list[dict] = []
     errors: list[ImportRowError] = []
 
-    required = {"Discord User", "Game", "Hours", "Minutes", "Source", "Note"}
-    if set(reader.fieldnames or []) != required:
+    fieldnames = set(reader.fieldnames or [])
+    required_without_id = {"Discord User", "Game", "Hours", "Minutes", "Source", "Note"}
+    required_with_id = {"Discord User ID", "Game", "Hours", "Minutes", "Source", "Note"}
+    required_with_both = {"Discord User", "Discord User ID", "Game", "Hours", "Minutes", "Source", "Note"}
+    if fieldnames not in {required_without_id, required_with_id, required_with_both}:
         errors.append(ImportRowError(row_number=0, message="Invalid headers"))
         return rows, errors
 
     for idx, row in enumerate(reader, start=2):
         try:
+            discord_user_raw = (row.get("Discord User", "") or "").strip()
+            discord_user_id_raw = (row.get("Discord User ID", "") or "").strip()
+            discord_user_id = None
+            if discord_user_id_raw:
+                discord_user_id = int(discord_user_id_raw)
+            if not discord_user_raw and discord_user_id is None:
+                raise ValueError("discord user identifier required")
+
             hours = int(row["Hours"])
             minutes = int(row["Minutes"])
             source = row["Source"].strip().lower()
@@ -153,7 +164,8 @@ def parse_csv_preview(content: bytes) -> tuple[list[dict], list[ImportRowError]]
                 raise ValueError("invalid time")
             rows.append(
                 {
-                    "discord_user": row["Discord User"].strip(),
+                    "discord_user": discord_user_raw,
+                    "discord_user_id": discord_user_id,
                     "game": row["Game"].strip(),
                     "hours": hours,
                     "minutes": minutes,

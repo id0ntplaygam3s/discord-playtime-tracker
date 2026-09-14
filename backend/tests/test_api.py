@@ -27,6 +27,12 @@ def test_login_and_overview(client):
     assert 'total_combined_seconds' in body
 
 
+def test_overview_allows_guild_id_zero_fallback(client):
+    headers = _auth_header(client)
+    resp = client.get('/api/stats/overview', params={'guild_id': 0}, headers=headers)
+    assert resp.status_code == 200
+
+
 def test_guest_login_and_overview(client):
     headers = _guest_header(client)
     me = client.get('/api/auth/me', headers=headers)
@@ -236,3 +242,31 @@ def test_game_merge_reassigns_guild_data(client, db_session):
     game_users = client.get(f'/api/games/{target_game.id}/users', params={'guild_id': 1}, headers=headers)
     assert game_users.status_code == 200
     assert any(row['id'] == user.id for row in game_users.json())
+
+
+def test_active_sessions_allows_guild_id_zero_fallback(client, db_session):
+    from app.models import ActivitySession, Game, User
+
+    headers = _auth_header(client)
+    user = User(guild_id=1, discord_user_id=121212, username='active', display_name='Active User')
+    game = Game(normalized_name='active-game', display_name='Active Game')
+    db_session.add_all([user, game])
+    db_session.commit()
+    db_session.refresh(user)
+    db_session.refresh(game)
+
+    start = datetime(2026, 9, 10, 19, 0, tzinfo=timezone.utc)
+    db_session.add(
+        ActivitySession(
+            guild_id=1,
+            user_id=user.id,
+            game_id=game.id,
+            started_at=start,
+            ended_at=None,
+        )
+    )
+    db_session.commit()
+
+    resp = client.get('/api/activity/active', params={'guild_id': 0}, headers=headers)
+    assert resp.status_code == 200
+    assert any(row['user_id'] == user.id for row in resp.json())

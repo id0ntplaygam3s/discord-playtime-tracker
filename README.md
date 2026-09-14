@@ -80,6 +80,8 @@ docker compose exec postgres psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "sele
 
 3. Set `VITE_GUILD_ID` to the `id` column (internal DB id, usually `1` for a first install), not the Discord snowflake.
 
+If `VITE_GUILD_ID` is left as `0`, the API now falls back to the configured Discord guild's internal id automatically.
+
 ## 7. Environment Variables
 Copy and edit:
 
@@ -206,6 +208,15 @@ Discord User,Game,Hours,Minutes,Source,Note
 John,Minecraft,1240,0,historical,Existing stats
 ```
 
+Preferred header for safer matching:
+
+```csv
+Discord User ID,Discord User,Game,Hours,Minutes,Source,Note
+155149108183695360,John,Minecraft,1240,0,historical,Existing stats
+```
+
+When `Discord User ID` is provided, import matching uses Discord IDs first (recommended), then falls back to name matching only when ID is missing.
+
 Flow:
 1. Preview
 2. Validation report
@@ -313,7 +324,7 @@ npm run build
 - `401 login`: verify `ADMIN_USERNAME`/`ADMIN_PASSWORD` and `SECRET_KEY`.
 - No live sessions: verify bot intents and Discord activity visibility.
 - Steam import fails: verify `STEAM_API_KEY` and profile visibility/identifier.
-- Empty dashboard or "Failed to load dashboard data": verify `VITE_GUILD_ID` is the internal DB guild id (query `guilds.id`) and not the Discord server ID.
+- Empty dashboard or "Failed to load dashboard data": verify `VITE_GUILD_ID` is the internal DB guild id (query `guilds.id`) and not the Discord server ID. If `VITE_GUILD_ID=0`, the backend auto-resolves to the configured guild.
 - Postgres error `could not determine data type of parameter $4`: update backend image to a version that includes typed casts for optional `from/to` filters, then recreate backend.
 
 ## 19. Privacy

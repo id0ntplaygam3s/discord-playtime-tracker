@@ -3,6 +3,7 @@ from sqlalchemy import desc, func
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user
+from app.api.guilds import resolve_guild_id
 from app.db.session import get_db
 from app.models import ActivitySession, Game, ManualPlaytime, PlaytimeAdjustment, User
 
@@ -17,12 +18,13 @@ def _duration_seconds_expr(db: Session):
 
 @router.get("")
 def list_users(
-    guild_id: int = Query(...),
+    guild_id: int = Query(default=0),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100),
     _: object = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    guild_id = resolve_guild_id(db, guild_id)
     offset = (page - 1) * page_size
     rows = (
         db.query(User)
@@ -38,10 +40,11 @@ def list_users(
 @router.get("/{user_id}")
 def user_profile(
     user_id: int,
-    guild_id: int = Query(...),
+    guild_id: int = Query(default=0),
     _: object = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    guild_id = resolve_guild_id(db, guild_id)
     user = db.query(User).filter(User.id == user_id, User.guild_id == guild_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
@@ -77,10 +80,11 @@ def user_profile(
 @router.get("/{user_id}/games")
 def user_games(
     user_id: int,
-    guild_id: int = Query(...),
+    guild_id: int = Query(default=0),
     _: object = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    guild_id = resolve_guild_id(db, guild_id)
     user = db.query(User.id).filter(User.id == user_id, User.guild_id == guild_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
@@ -136,12 +140,13 @@ def user_games(
 @router.get("/{user_id}/sessions")
 def user_sessions(
     user_id: int,
-    guild_id: int = Query(...),
+    guild_id: int = Query(default=0),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100),
     _: object = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    guild_id = resolve_guild_id(db, guild_id)
     user = db.query(User.id).filter(User.id == user_id, User.guild_id == guild_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
