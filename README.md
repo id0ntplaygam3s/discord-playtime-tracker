@@ -40,6 +40,7 @@ Totals are derived from source records and remain auditable.
 - `docker-compose.yml`: default public-image deployment
 - `docker-compose.build.yml`: local source build override
 - `docker-compose.hub.yml`: optional explicit public-image compose
+- `docker-compose.truenas.yml`: TrueNAS-style deployment using `config/.env` and bind-mounted postgres data
 - `.env.example`: environment template
 
 ## 5. Prerequisites
@@ -60,9 +61,24 @@ Totals are derived from source records and remain auditable.
 
 This app does not read messages, DMs, or voice content.
 
+How to find `DISCORD_GUILD_ID`:
+1. In Discord, open `User Settings -> Advanced` and enable Developer Mode.
+2. Right-click your server icon.
+3. Click `Copy Server ID`.
+
 For Discord app verification/profile setup, publish these two files to public URLs (for example GitHub Pages or raw files in your public repository) and paste those URLs into Discord Developer Portal fields:
 - Terms of Service URL
 - Privacy Policy URL
+
+How to find `VITE_GUILD_ID` for the current dashboard build:
+1. Start the stack once so guild data is seeded.
+2. Run:
+
+```bash
+docker compose exec postgres psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "select id, discord_guild_id, name from guilds;"
+```
+
+3. Set `VITE_GUILD_ID` to the `id` column (internal DB id, usually `1` for a first install), not the Discord snowflake.
 
 ## 7. Environment Variables
 Copy and edit:
@@ -133,6 +149,18 @@ docker compose exec backend alembic upgrade head
 
 7. Open dashboard:
 - `http://SERVER-IP:${WEB_PORT}`
+
+### 8.1 TrueNAS-style deployment
+If your app data lives under a dataset path and you want `env_file` + host bind mounts, use:
+
+```bash
+docker compose -f docker-compose.truenas.yml --env-file ./config/.env pull
+docker compose -f docker-compose.truenas.yml --env-file ./config/.env up -d
+```
+
+The provided compose file expects:
+- `./config/.env`
+- `./postgres_data` directory for PostgreSQL persistence
 
 ## 9. First Login Flow
 On login page:
@@ -285,7 +313,8 @@ npm run build
 - `401 login`: verify `ADMIN_USERNAME`/`ADMIN_PASSWORD` and `SECRET_KEY`.
 - No live sessions: verify bot intents and Discord activity visibility.
 - Steam import fails: verify `STEAM_API_KEY` and profile visibility/identifier.
-- Empty dashboard: verify `DISCORD_GUILD_ID` and bot membership in that guild.
+- Empty dashboard or "Failed to load dashboard data": verify `VITE_GUILD_ID` is the internal DB guild id (query `guilds.id`) and not the Discord server ID.
+- Postgres error `could not determine data type of parameter $4`: update backend image to a version that includes typed casts for optional `from/to` filters, then recreate backend.
 
 ## 19. Privacy
 Stored:

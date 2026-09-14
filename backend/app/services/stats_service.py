@@ -274,8 +274,8 @@ def activity_over_time(
           ) AS gs ON true
           WHERE s.guild_id = :guild_id
             AND (s.ended_at IS NULL OR s.ended_at >= s.started_at)
-            AND (:from_dt IS NULL OR COALESCE(s.ended_at, NOW()) > :from_dt)
-            AND (:to_dt IS NULL OR s.started_at < :to_dt)
+                        AND (CAST(:from_dt AS timestamptz) IS NULL OR COALESCE(s.ended_at, NOW()) > CAST(:from_dt AS timestamptz))
+                        AND (CAST(:to_dt AS timestamptz) IS NULL OR s.started_at < CAST(:to_dt AS timestamptz))
         ) split
         GROUP BY (date_trunc(:g, bucket_local) AT TIME ZONE :tz)
         ORDER BY bucket ASC
