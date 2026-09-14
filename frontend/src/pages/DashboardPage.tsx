@@ -168,7 +168,7 @@ export default function DashboardPage() {
       </header>
 
       <section className="stat-grid">
-        <StatCard label="Total Combined" value={totalDisplay} accent="red" />
+        <StatCard label="Total Playtime" value={totalDisplay} accent="red" />
         <StatCard label="Tracked Users" value={String(overview.tracked_users)} accent="blue" />
         <StatCard label="Games" value={String(overview.games)} accent="green" />
         <StatCard label="Playing Now" value={String(overview.currently_playing)} accent="blue" />

@@ -47,7 +47,7 @@ export default function UsersGraphPage() {
             <strong>{rows.length}</strong>
           </div>
           <div>
-            <span className="subtle">Combined Time</span>
+            <span className="subtle">Total Playtime</span>
             <strong>{formatDuration(totalSeconds)}</strong>
           </div>
           <div>

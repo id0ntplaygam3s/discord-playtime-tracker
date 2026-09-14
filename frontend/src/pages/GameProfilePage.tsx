@@ -55,7 +55,7 @@ export default function GameProfilePage() {
             <thead>
               <tr>
                 <th>User</th>
-                <th>Total</th>
+                <th>Total Playtime</th>
               </tr>
             </thead>
             <tbody>
