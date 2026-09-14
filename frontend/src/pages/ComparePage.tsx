@@ -3,6 +3,31 @@ import client from '../api/client';
 import { formatDuration } from '../utils/time';
 import { listUsers } from '../api/adminApi';
 
+function normalizeError(err: any, fallback: string): string {
+  const detail = err?.response?.data?.detail;
+  if (typeof detail === 'string') return detail;
+  if (Array.isArray(detail)) {
+    return detail
+      .map((item) => {
+        if (typeof item === 'string') return item;
+        if (item?.msg) return String(item.msg);
+        return JSON.stringify(item);
+      })
+      .join('; ');
+  }
+  if (detail && typeof detail === 'object') {
+    return JSON.stringify(detail);
+  }
+  return fallback;
+}
+
+function compareParams(guildId: number, userIds: number[]): URLSearchParams {
+  const params = new URLSearchParams();
+  params.set('guild_id', String(guildId));
+  userIds.forEach((id) => params.append('user_ids', String(id)));
+  return params;
+}
+
 export default function ComparePage() {
   const guildId = Number(import.meta.env.VITE_GUILD_ID || 0);
   const [users, setUsers] = useState<any[]>([]);
@@ -14,11 +39,12 @@ export default function ComparePage() {
   useEffect(() => {
     const loadUsers = async () => {
       try {
+        setError(null);
         const data = await listUsers(guildId);
         setUsers(data);
         setSelected(data.slice(0, 2).map((u: any) => u.id));
       } catch (err: any) {
-        setError(err?.response?.data?.detail || 'Failed to load users');
+        setError(normalizeError(err, 'Failed to load users'));
       }
     };
     void loadUsers();
@@ -32,14 +58,16 @@ export default function ComparePage() {
         return;
       }
       try {
+        setError(null);
+        const params = compareParams(guildId, selected);
         const [compareRes, sharedRes] = await Promise.all([
-          client.get('/compare/users', { params: { guild_id: guildId, user_ids: selected } }),
-          client.get('/compare/shared-games', { params: { guild_id: guildId, user_ids: selected } }),
+          client.get('/compare/users', { params }),
+          client.get('/compare/shared-games', { params }),
         ]);
         setCompareRows(compareRes.data);
         setSharedGames(sharedRes.data);
       } catch (err: any) {
-        setError(err?.response?.data?.detail || 'Failed to compare users');
+        setError(normalizeError(err, 'Failed to compare users'));
       }
     };
     void runCompare();
