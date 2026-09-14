@@ -9,6 +9,10 @@ It combines:
 
 Totals are derived from source records and remain auditable.
 
+## Legal Documents
+- Terms of Service: [TERMS_OF_SERVICE.md](TERMS_OF_SERVICE.md)
+- Privacy Policy: [PRIVACY_POLICY.md](PRIVACY_POLICY.md)
+
 ## 1. What This Tracks
 - Discord observed activity sessions (`playing` presence events)
 - Per-user and per-game playtime totals
@@ -54,6 +58,10 @@ Totals are derived from source records and remain auditable.
 - Permission: `View Channels`
 
 This app does not read messages, DMs, or voice content.
+
+For Discord app verification/profile setup, publish these two files to public URLs (for example GitHub Pages or raw files in your public repository) and paste those URLs into Discord Developer Portal fields:
+- Terms of Service URL
+- Privacy Policy URL
 
 ## 7. Environment Variables
 Copy and edit:
