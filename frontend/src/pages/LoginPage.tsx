@@ -47,7 +47,7 @@ export default function LoginPage({ onAuth }: { onAuth: () => void }) {
   return (
     <div className="login-shell">
       <div className="login-card">
-        <h1>Discord Game Tracker</h1>
+        <h1>Discord Playtime Tracker</h1>
         <p>Private playtime analytics for your Discord guild.</p>
 
         <button type="button" className="primary-login-btn" onClick={handleGuestLogin} disabled={isGuestLoading || isAdminLoading}>

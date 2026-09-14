@@ -13,7 +13,7 @@ services:
     restart: unless-stopped
 
   backend:
-    image: ${DOCKERHUB_NAMESPACE:-id0ntplaygam3s}/discord-game-tracker-backend:${APP_IMAGE_TAG:-latest}
+    image: ${DOCKERHUB_NAMESPACE:-id0ntplaygam3s}/discord-playtime-tracker-backend:${APP_IMAGE_TAG:-latest}
     env_file:
       - ./config/.env
     environment:
@@ -29,7 +29,7 @@ services:
     restart: unless-stopped
 
   frontend:
-    image: ${DOCKERHUB_NAMESPACE:-id0ntplaygam3s}/discord-game-tracker-frontend:${APP_IMAGE_TAG:-latest}
+    image: ${DOCKERHUB_NAMESPACE:-id0ntplaygam3s}/discord-playtime-tracker-frontend:${APP_IMAGE_TAG:-latest}
     ports:
       - "${WEB_PORT:-4091}:80"
     depends_on:

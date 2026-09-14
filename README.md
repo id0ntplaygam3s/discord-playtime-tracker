@@ -1,4 +1,4 @@
-# Discord Game Playtime Tracker
+# Discord Playtime Tracker
 
 Self-hosted Discord activity and playtime tracker for private communities.
 
@@ -48,7 +48,7 @@ This is the quickest path if you just want the app running and do not need the r
 ```yaml
 services:
   backend:
-    image: id0ntplaygam3s/discord-game-tracker-backend:latest
+    image: id0ntplaygam3s/discord-playtime-tracker-backend:latest
     restart: unless-stopped
     depends_on:
       postgres:
@@ -64,7 +64,7 @@ services:
       retries: 5
 
   frontend:
-    image: id0ntplaygam3s/discord-game-tracker-frontend:latest
+    image: id0ntplaygam3s/discord-playtime-tracker-frontend:latest
     restart: unless-stopped
     depends_on:
       backend:
@@ -118,7 +118,7 @@ services:
       postgres:
         condition: service_healthy
     env_file:
-      - /mnt/Applications/discord-game-tracker/config/.env
+      - /mnt/Applications/discord-playtime-tracker/config/.env
     environment:
       PYTHONPATH: /app
     healthcheck:
@@ -130,19 +130,19 @@ services:
         - '-f'
         - http://localhost:8000/api/health
       timeout: 5s
-    image: id0ntplaygam3s/discord-game-tracker-backend:latest
+    image: id0ntplaygam3s/discord-playtime-tracker-backend:latest
     restart: unless-stopped
   frontend:
     depends_on:
       backend:
         condition: service_healthy
-    image: id0ntplaygam3s/discord-game-tracker-frontend:latest
+    image: id0ntplaygam3s/discord-playtime-tracker-frontend:latest
     ports:
       - '4091:80'
     restart: unless-stopped
   postgres:
     env_file:
-      - /mnt/Applications/discord-game-tracker/config/.env
+      - /mnt/Applications/discord-playtime-tracker/config/.env
     healthcheck:
       interval: 10s
       retries: 5
@@ -154,7 +154,7 @@ services:
     restart: unless-stopped
     volumes:
       - >-
-        /mnt/Applications/discord-game-tracker/postgres_data:/var/lib/postgresql/data
+        /mnt/Applications/discord-playtime-tracker/postgres_data:/var/lib/postgresql/data
 ```
 
 ## Repository Install (Clone + Compose Files)
@@ -164,7 +164,7 @@ Use this path if you want local project files and the repository-managed compose
 
 ```bash
 git clone <your-fork-or-repo-url>
-cd discord-game-tracker
+cd discord-playtime-tracker
 ```
 
 2. Copy environment template and fill required values:
@@ -399,10 +399,10 @@ The TrueNAS compose file expects:
 Maintainer-only publish flow:
 
 ```bash
-docker build -t <dockerhub-user>/discord-game-tracker-backend:<tag> ./backend
-docker build -t <dockerhub-user>/discord-game-tracker-frontend:<tag> ./frontend
-docker push <dockerhub-user>/discord-game-tracker-backend:<tag>
-docker push <dockerhub-user>/discord-game-tracker-frontend:<tag>
+docker build -t <dockerhub-user>/discord-playtime-tracker-backend:<tag> ./backend
+docker build -t <dockerhub-user>/discord-playtime-tracker-frontend:<tag> ./frontend
+docker push <dockerhub-user>/discord-playtime-tracker-backend:<tag>
+docker push <dockerhub-user>/discord-playtime-tracker-frontend:<tag>
 ```
 
 ### Tailscale Deployment Model

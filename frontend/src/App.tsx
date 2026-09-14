@@ -22,14 +22,45 @@ function isAuthenticated(): boolean {
   return Boolean(localStorage.getItem('tracker_token'));
 }
 
+type LayoutModePreference = 'auto' | 'mobile' | 'desktop';
+type LayoutMode = 'mobile' | 'desktop';
+
+function detectDeviceMobile(): boolean {
+  if (typeof window === 'undefined') return false;
+  const mobileMedia = window.matchMedia('(max-width: 980px)').matches;
+  const touchMedia = window.matchMedia('(pointer: coarse)').matches;
+  return mobileMedia || touchMedia;
+}
+
 export default function App() {
   const [authed, setAuthed] = useState(isAuthenticated());
   const [role, setRole] = useState<'admin' | 'viewer' | null>(null);
+  const [layoutPreference, setLayoutPreference] = useState<LayoutModePreference>(() => {
+    const stored = localStorage.getItem('tracker_layout_mode');
+    return stored === 'mobile' || stored === 'desktop' || stored === 'auto' ? stored : 'auto';
+  });
+  const [deviceIsMobile, setDeviceIsMobile] = useState<boolean>(detectDeviceMobile);
   const statusText = useMemo(
     () =>
       'This page scaffolds the complete feature area and can be extended with dedicated API-backed tables and controls.',
     []
   );
+  const resolvedLayoutMode: LayoutMode = layoutPreference === 'auto' ? (deviceIsMobile ? 'mobile' : 'desktop') : layoutPreference;
+
+  useEffect(() => {
+    document.title = 'Discord Playtime Tracker';
+  }, []);
+
+  useEffect(() => {
+    const update = () => setDeviceIsMobile(detectDeviceMobile());
+    update();
+    window.addEventListener('resize', update);
+    return () => window.removeEventListener('resize', update);
+  }, []);
+
+  useEffect(() => {
+    localStorage.setItem('tracker_layout_mode', layoutPreference);
+  }, [layoutPreference]);
 
   useEffect(() => {
     if (!authed) {
@@ -72,7 +103,18 @@ export default function App() {
 
   return (
     <Routes>
-      <Route element={<AppLayout isAdmin={isAdmin} onSignOut={handleSignOut} onSwitchToAdmin={handleSwitchToAdmin} />}>
+      <Route
+        element={
+          <AppLayout
+            isAdmin={isAdmin}
+            onSignOut={handleSignOut}
+            onSwitchToAdmin={handleSwitchToAdmin}
+            layoutMode={resolvedLayoutMode}
+            layoutPreference={layoutPreference}
+            onLayoutPreferenceChange={setLayoutPreference}
+          />
+        }
+      >
         <Route path="/" element={<DashboardPage />} />
         <Route path="/games" element={<GamesPage />} />
         <Route path="/games-graph" element={<GamesGraphPage />} />

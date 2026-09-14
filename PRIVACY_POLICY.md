@@ -2,7 +2,7 @@
 
 Last updated: 2026-09-14
 
-This Privacy Policy explains what data the Discord Game Playtime Tracker (the "Service") processes and how that data is used.
+This Privacy Policy explains what data the Discord Playtime Tracker (the "Service") processes and how that data is used.
 
 ## 1. Scope
 This policy covers the Discord bot, backend API, and dashboard included in this repository.

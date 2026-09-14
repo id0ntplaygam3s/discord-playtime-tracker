@@ -22,15 +22,25 @@ interface AppLayoutProps {
   isAdmin: boolean;
   onSignOut: () => void;
   onSwitchToAdmin: () => void;
+  layoutMode: 'mobile' | 'desktop';
+  layoutPreference: 'auto' | 'mobile' | 'desktop';
+  onLayoutPreferenceChange: (mode: 'auto' | 'mobile' | 'desktop') => void;
 }
 
-export default function AppLayout({ isAdmin, onSignOut, onSwitchToAdmin }: AppLayoutProps) {
+export default function AppLayout({
+  isAdmin,
+  onSignOut,
+  onSwitchToAdmin,
+  layoutMode,
+  layoutPreference,
+  onLayoutPreferenceChange,
+}: AppLayoutProps) {
   const navItems = isAdmin ? [...baseNavItems, ...adminNavItems] : baseNavItems;
 
   return (
-    <div className="layout-shell">
+    <div className={`layout-shell layout-${layoutMode}`}>
       <aside className="sidebar">
-        <div className="brand">Discord Game Tracker</div>
+        <div className="brand">Discord Playtime Tracker</div>
         <nav>
           {navItems.map(([to, label]) => (
             <NavLink key={to} to={to} end={to === '/'} className="nav-link">
@@ -38,6 +48,18 @@ export default function AppLayout({ isAdmin, onSignOut, onSwitchToAdmin }: AppLa
             </NavLink>
           ))}
         </nav>
+        <div className="mode-switcher">
+          <label htmlFor="layout-mode">Layout Mode</label>
+          <select
+            id="layout-mode"
+            value={layoutPreference}
+            onChange={(e) => onLayoutPreferenceChange(e.target.value as 'auto' | 'mobile' | 'desktop')}
+          >
+            <option value="auto">Auto (device)</option>
+            <option value="mobile">Force mobile</option>
+            <option value="desktop">Force desktop</option>
+          </select>
+        </div>
         <div className="sidebar-actions">
           {!isAdmin && (
             <button type="button" className="sidebar-btn" onClick={onSwitchToAdmin}>

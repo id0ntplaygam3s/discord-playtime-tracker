@@ -61,7 +61,7 @@ async def lifespan(app: FastAPI):
     logger.info("app_shutdown")
 
 
-app = FastAPI(title="Discord Game Tracker", version=settings.app_version, lifespan=lifespan)
+app = FastAPI(title="Discord Playtime Tracker", version=settings.app_version, lifespan=lifespan)
 app.include_router(api_router)
 
 app.add_middleware(

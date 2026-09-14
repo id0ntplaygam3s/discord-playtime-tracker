@@ -2,7 +2,7 @@
 
 Last updated: 2026-09-14
 
-These Terms of Service ("Terms") govern use of the Discord Game Playtime Tracker application, including the Discord bot, API, and web dashboard (collectively, the "Service").
+These Terms of Service ("Terms") govern use of the Discord Playtime Tracker application, including the Discord bot, API, and web dashboard (collectively, the "Service").
 
 By using the Service, you agree to these Terms.
 
