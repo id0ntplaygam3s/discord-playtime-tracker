@@ -6,7 +6,9 @@ Track game activity your bot can observe in Discord, combine it with historical/
 
 ## Table of Contents
 - [What It Does](#what-it-does)
-- [Quick Install (Recommended)](#quick-install-recommended)
+- [Quick Install (No Clone, Public Images)](#quick-install-no-clone-public-images)
+- [TrueNAS Example (Optional)](#truenas-example-optional)
+- [Repository Install (Clone + Compose Files)](#repository-install-clone--compose-files)
 - [Prerequisites](#prerequisites)
 - [Discord Bot Setup](#discord-bot-setup)
 - [Environment Variables](#environment-variables)
@@ -36,8 +38,127 @@ Important limitations:
 - Bot downtime can create missing observed time.
 - Missing time is never faked; use manual adjustments for corrections.
 
-## Quick Install (Recommended)
-This is the fastest path for most users and pulls public images.
+## Quick Install (No Clone, Public Images)
+This is the quickest path if you just want the app running and do not need the repository locally.
+
+1. Create an app directory with `config` and `postgres_data` folders.
+2. Create `config/.env` and fill the required environment variables from the [Environment Variables](#environment-variables) section.
+3. Create a `docker-compose.yml` file like this:
+
+```yaml
+services:
+  backend:
+    image: id0ntplaygam3s/discord-game-tracker-backend:latest
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    env_file:
+      - ./config/.env
+    environment:
+      PYTHONPATH: /app
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      interval: 20s
+      timeout: 5s
+      retries: 5
+
+  frontend:
+    image: id0ntplaygam3s/discord-game-tracker-frontend:latest
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "4091:80"
+
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    env_file:
+      - ./config/.env
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - ./postgres_data:/var/lib/postgresql/data
+```
+
+4. Start services:
+
+```bash
+docker compose pull
+docker compose up -d
+```
+
+5. Run migrations (safe and idempotent):
+
+```bash
+docker compose exec backend alembic upgrade head
+```
+
+6. Check health:
+
+```bash
+curl -fsS http://localhost:4091/api/health
+```
+
+7. Open dashboard:
+- `http://SERVER-IP:4091`
+
+## TrueNAS Example (Optional)
+If you are using a TrueNAS dataset layout, this is a working example:
+
+```yaml
+services:
+  backend:
+    depends_on:
+      postgres:
+        condition: service_healthy
+    env_file:
+      - /mnt/Applications/discord-game-tracker/config/.env
+    environment:
+      PYTHONPATH: /app
+    healthcheck:
+      interval: 20s
+      retries: 5
+      test:
+        - CMD
+        - curl
+        - '-f'
+        - http://localhost:8000/api/health
+      timeout: 5s
+    image: id0ntplaygam3s/discord-game-tracker-backend:latest
+    restart: unless-stopped
+  frontend:
+    depends_on:
+      backend:
+        condition: service_healthy
+    image: id0ntplaygam3s/discord-game-tracker-frontend:latest
+    ports:
+      - '4091:80'
+    restart: unless-stopped
+  postgres:
+    env_file:
+      - /mnt/Applications/discord-game-tracker/config/.env
+    healthcheck:
+      interval: 10s
+      retries: 5
+      test:
+        - CMD-SHELL
+        - pg_isready -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}"
+      timeout: 5s
+    image: postgres:17-alpine
+    restart: unless-stopped
+    volumes:
+      - >-
+        /mnt/Applications/discord-game-tracker/postgres_data:/var/lib/postgresql/data
+```
+
+## Repository Install (Clone + Compose Files)
+Use this path if you want local project files and the repository-managed compose variants.
 
 1. Clone and enter project:
 
@@ -59,22 +180,11 @@ docker compose pull
 docker compose up -d
 ```
 
-4. Run migrations (safe and idempotent):
+4. Run migrations:
 
 ```bash
 docker compose exec backend alembic upgrade head
 ```
-
-5. Check health:
-
-```bash
-curl -fsS http://localhost:${WEB_PORT}/api/health
-```
-
-6. Open dashboard:
-- `http://SERVER-IP:${WEB_PORT}`
-
-If you only wanted install steps, you can stop here.
 
 ## Prerequisites
 - Linux server/VPS (recommended) with Docker Engine + Compose plugin
