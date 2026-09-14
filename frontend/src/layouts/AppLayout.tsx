@@ -48,6 +48,17 @@ export default function AppLayout({ isAdmin, onSignOut, onSwitchToAdmin }: AppLa
             Sign out
           </button>
         </div>
+        <div className="sidebar-credit">
+          Created by{' '}
+          <a
+            className="sidebar-credit-link"
+            href="https://github.com/id0ntplaygam3s/discord-playtime-tracker"
+            target="_blank"
+            rel="noreferrer"
+          >
+            id0ntplaygam3s
+          </a>
+        </div>
       </aside>
       <main className="content">
         <Outlet />

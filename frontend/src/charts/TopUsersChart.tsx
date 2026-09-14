@@ -27,7 +27,7 @@ export default function TopUsersChart({ data, title = 'Most Active Players', hei
           <XAxis type="number" hide />
           <YAxis type="category" dataKey="name" width={yAxisWidth} stroke="#67E8F9" tickFormatter={(v) => truncate(String(v))} />
           <Tooltip
-            formatter={(value: number) => formatDuration(value)}
+            formatter={(value: number) => [formatDuration(value), 'Total play time']}
             labelFormatter={(label) => String(label)}
             contentStyle={{ background: '#0b1117', border: '1px solid #1f2937' }}
           />

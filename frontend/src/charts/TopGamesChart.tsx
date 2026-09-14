@@ -27,7 +27,7 @@ export default function TopGamesChart({ data, title = 'Most Played Games', heigh
           <XAxis type="number" hide />
           <YAxis type="category" dataKey="name" width={yAxisWidth} stroke="#A5B4FC" tickFormatter={(v) => truncate(String(v))} />
           <Tooltip
-            formatter={(value: number) => formatDuration(value)}
+            formatter={(value: number) => [formatDuration(value), 'Total play time']}
             labelFormatter={(label) => String(label)}
             contentStyle={{ background: '#0b1117', border: '1px solid #1f2937' }}
           />

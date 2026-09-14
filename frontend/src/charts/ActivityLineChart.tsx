@@ -17,7 +17,7 @@ export default function ActivityLineChart({ data }: { data: TimeBucketPoint[] })
           <CartesianGrid strokeDasharray="4 4" stroke="#1F2937" />
           <XAxis dataKey="label" stroke="#94A3B8" />
           <YAxis stroke="#94A3B8" />
-          <Tooltip formatter={(value: number) => formatDuration(value)} />
+          <Tooltip formatter={(value: number) => [formatDuration(value), 'Total play time']} />
           <Line type="monotone" dataKey="total_seconds" stroke="#F97316" strokeWidth={3} dot={false} />
         </LineChart>
       </ResponsiveContainer>
