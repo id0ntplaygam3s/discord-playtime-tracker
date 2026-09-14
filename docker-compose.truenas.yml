@@ -1,5 +1,5 @@
 services:
-  postgres:
+  discord-playtime-tracker-postgres:
     image: postgres:17-alpine
     env_file:
       - ./config/.env
@@ -12,14 +12,14 @@ services:
       retries: 5
     restart: unless-stopped
 
-  backend:
+  discord-playtime-tracker-backend:
     image: ${DOCKERHUB_NAMESPACE:-id0ntplaygam3s}/discord-playtime-tracker-backend:${APP_IMAGE_TAG:-latest}
     env_file:
       - ./config/.env
     environment:
       PYTHONPATH: /app
     depends_on:
-      postgres:
+      discord-playtime-tracker-postgres:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
@@ -28,11 +28,11 @@ services:
       retries: 5
     restart: unless-stopped
 
-  frontend:
+  discord-playtime-tracker-frontend:
     image: ${DOCKERHUB_NAMESPACE:-id0ntplaygam3s}/discord-playtime-tracker-frontend:${APP_IMAGE_TAG:-latest}
     ports:
       - "${WEB_PORT:-4091}:80"
     depends_on:
-      backend:
+      discord-playtime-tracker-backend:
         condition: service_healthy
     restart: unless-stopped

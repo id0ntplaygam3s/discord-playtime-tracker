@@ -2,11 +2,13 @@ import { useEffect, useState } from 'react';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 import client from '../api/client';
+import { useAppPreferences } from '../context/AppPreferencesContext';
 
 dayjs.extend(relativeTime);
 
 export default function ActivityPage() {
   const guildId = Number(import.meta.env.VITE_GUILD_ID || 0);
+  const { autoRefreshEnabled } = useAppPreferences();
   const [active, setActive] = useState<any[]>([]);
   const [recent, setRecent] = useState<any[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -26,9 +28,11 @@ export default function ActivityPage() {
     };
 
     void load();
-    const timer = window.setInterval(load, 30_000);
-    return () => window.clearInterval(timer);
-  }, [guildId]);
+    const timer = autoRefreshEnabled ? window.setInterval(load, 30_000) : null;
+    return () => {
+      if (timer) window.clearInterval(timer);
+    };
+  }, [guildId, autoRefreshEnabled]);
 
   return (
     <div className="page-grid">

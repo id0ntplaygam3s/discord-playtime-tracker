@@ -5,11 +5,13 @@ import TopGamesChart from '../charts/TopGamesChart';
 import TopUsersChart from '../charts/TopUsersChart';
 import CurrentSessions from '../components/CurrentSessions';
 import StatCard from '../components/StatCard';
+import { useAppPreferences } from '../context/AppPreferencesContext';
 import { useDashboardData } from '../hooks/useDashboardData';
 import { formatDuration } from '../utils/time';
 
 export default function DashboardPage() {
   const guildId = Number(import.meta.env.VITE_GUILD_ID || 0);
+  const { autoRefreshEnabled } = useAppPreferences();
   const [selectedGameId, setSelectedGameId] = useState<number>(0);
   const [selectedGameUsers, setSelectedGameUsers] = useState<any[]>([]);
   const [selectedGameLoading, setSelectedGameLoading] = useState(false);
@@ -20,7 +22,7 @@ export default function DashboardPage() {
   const [splitRows, setSplitRows] = useState<Array<Record<string, string | number>>>([]);
   const [splitPlayers, setSplitPlayers] = useState<Array<{ key: string; name: string; color: string }>>([]);
   const [splitError, setSplitError] = useState<string | null>(null);
-  const { overview, games, users, daily, active, loading, error } = useDashboardData(guildId);
+  const { overview, games, users, daily, active, loading, error } = useDashboardData(guildId, autoRefreshEnabled);
 
   const palette = ['#22d3ee', '#f97316', '#4ade80', '#f43f5e', '#facc15', '#a78bfa', '#14b8a6', '#60a5fa'];
 

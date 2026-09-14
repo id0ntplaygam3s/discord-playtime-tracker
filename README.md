@@ -4,6 +4,10 @@ Self-hosted Discord activity and playtime tracker for private communities.
 
 Track game activity your bot can observe in Discord, combine it with historical/manual records, and keep all totals auditable through source records and admin audit logs.
 
+## Dashboard Preview
+
+<img src="docs/images/dashboard-preview.png" alt="Discord Playtime Tracker dashboard preview" width="100%" />
+
 ## Table of Contents
 - [What It Does](#what-it-does)
 - [Quick Install (No Clone, Public Images)](#quick-install-no-clone-public-images)
@@ -47,11 +51,11 @@ This is the quickest path if you just want the app running and do not need the r
 
 ```yaml
 services:
-  backend:
+  discord-playtime-tracker-backend:
     image: id0ntplaygam3s/discord-playtime-tracker-backend:latest
     restart: unless-stopped
     depends_on:
-      postgres:
+      discord-playtime-tracker-postgres:
         condition: service_healthy
     env_file:
       - ./config/.env
@@ -63,16 +67,16 @@ services:
       timeout: 5s
       retries: 5
 
-  frontend:
+  discord-playtime-tracker-frontend:
     image: id0ntplaygam3s/discord-playtime-tracker-frontend:latest
     restart: unless-stopped
     depends_on:
-      backend:
+      discord-playtime-tracker-backend:
         condition: service_healthy
     ports:
       - "4091:80"
 
-  postgres:
+  discord-playtime-tracker-postgres:
     image: postgres:17-alpine
     restart: unless-stopped
     env_file:
@@ -96,7 +100,7 @@ docker compose up -d
 5. Run migrations (safe and idempotent):
 
 ```bash
-docker compose exec backend alembic upgrade head
+docker compose exec discord-playtime-tracker-backend alembic upgrade head
 ```
 
 6. Check health:
@@ -113,9 +117,9 @@ If you are using a TrueNAS dataset layout, this is a working example:
 
 ```yaml
 services:
-  backend:
+  discord-playtime-tracker-backend:
     depends_on:
-      postgres:
+      discord-playtime-tracker-postgres:
         condition: service_healthy
     env_file:
       - /mnt/Applications/discord-playtime-tracker/config/.env
@@ -132,15 +136,15 @@ services:
       timeout: 5s
     image: id0ntplaygam3s/discord-playtime-tracker-backend:latest
     restart: unless-stopped
-  frontend:
+  discord-playtime-tracker-frontend:
     depends_on:
-      backend:
+      discord-playtime-tracker-backend:
         condition: service_healthy
     image: id0ntplaygam3s/discord-playtime-tracker-frontend:latest
     ports:
       - '4091:80'
     restart: unless-stopped
-  postgres:
+  discord-playtime-tracker-postgres:
     env_file:
       - /mnt/Applications/discord-playtime-tracker/config/.env
     healthcheck:
@@ -183,7 +187,7 @@ docker compose up -d
 4. Run migrations:
 
 ```bash
-docker compose exec backend alembic upgrade head
+docker compose exec discord-playtime-tracker-backend alembic upgrade head
 ```
 
 ## Prerequisites
@@ -244,7 +248,7 @@ Optional:
 How to query it after first start:
 
 ```bash
-docker compose exec postgres psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "select id, discord_guild_id, name from guilds;"
+docker compose exec discord-playtime-tracker-postgres psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "select id, discord_guild_id, name from guilds;"
 ```
 
 ## First Login
@@ -319,13 +323,13 @@ docker compose ps
 Backup:
 
 ```bash
-docker compose exec postgres pg_dump -U "$POSTGRES_USER" "$POSTGRES_DB" > backup.sql
+docker compose exec discord-playtime-tracker-postgres pg_dump -U "$POSTGRES_USER" "$POSTGRES_DB" > backup.sql
 ```
 
 Restore:
 
 ```bash
-docker compose exec -T postgres psql -U "$POSTGRES_USER" "$POSTGRES_DB" < backup.sql
+docker compose exec -T discord-playtime-tracker-postgres psql -U "$POSTGRES_USER" "$POSTGRES_DB" < backup.sql
 ```
 
 ### Upgrade Procedure
@@ -333,7 +337,7 @@ docker compose exec -T postgres psql -U "$POSTGRES_USER" "$POSTGRES_DB" < backup
 git pull
 docker compose pull
 docker compose up -d
-docker compose exec backend alembic upgrade head
+docker compose exec discord-playtime-tracker-backend alembic upgrade head
 ```
 
 ## Technical Reference

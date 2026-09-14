@@ -1,9 +1,9 @@
 services:
-  backend:
+  discord-playtime-tracker-backend:
     build:
       context: ./backend
 
-  frontend:
+  discord-playtime-tracker-frontend:
     build:
       context: ./frontend
       args:

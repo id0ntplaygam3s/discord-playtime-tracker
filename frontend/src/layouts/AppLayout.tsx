@@ -15,7 +15,6 @@ const adminNavItems = [
   ['/imports', 'Imports'],
   ['/audit-log', 'Audit Log'],
   ['/system-status', 'System Status'],
-  ['/settings', 'Settings'],
 ];
 
 interface AppLayoutProps {
@@ -25,6 +24,8 @@ interface AppLayoutProps {
   layoutMode: 'mobile' | 'desktop';
   layoutPreference: 'auto' | 'mobile' | 'desktop';
   onLayoutPreferenceChange: (mode: 'auto' | 'mobile' | 'desktop') => void;
+  autoRefreshEnabled: boolean;
+  onAutoRefreshChange: (enabled: boolean) => void;
 }
 
 export default function AppLayout({
@@ -34,6 +35,8 @@ export default function AppLayout({
   layoutMode,
   layoutPreference,
   onLayoutPreferenceChange,
+  autoRefreshEnabled,
+  onAutoRefreshChange,
 }: AppLayoutProps) {
   const navItems = isAdmin ? [...baseNavItems, ...adminNavItems] : baseNavItems;
 
@@ -59,6 +62,14 @@ export default function AppLayout({
             <option value="mobile">Force mobile</option>
             <option value="desktop">Force desktop</option>
           </select>
+          <label style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <input
+              type="checkbox"
+              checked={autoRefreshEnabled}
+              onChange={(e) => onAutoRefreshChange(e.target.checked)}
+            />
+            Auto refresh
+          </label>
         </div>
         <div className="sidebar-actions">
           {!isAdmin && (

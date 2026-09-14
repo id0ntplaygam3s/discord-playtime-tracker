@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react';
 import dayjs from 'dayjs';
 import { getSystemStatus } from '../api/adminApi';
+import { useAppPreferences } from '../context/AppPreferencesContext';
 import { formatDuration } from '../utils/time';
 
 export default function SystemStatusPage() {
+  const { autoRefreshEnabled } = useAppPreferences();
   const [status, setStatus] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -17,9 +19,11 @@ export default function SystemStatusPage() {
       }
     };
     load();
-    const interval = window.setInterval(load, 20_000);
-    return () => window.clearInterval(interval);
-  }, []);
+    const interval = autoRefreshEnabled ? window.setInterval(load, 20_000) : null;
+    return () => {
+      if (interval) window.clearInterval(interval);
+    };
+  }, [autoRefreshEnabled]);
 
   if (error) return <div className="error-box">{error}</div>;
   if (!status) return <div className="panel">Loading status...</div>;

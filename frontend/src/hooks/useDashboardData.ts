@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { getActiveSessions, getDaily, getOverview, getTopGames, getTopUsers } from '../api/trackerApi';
 import { OverviewStats, RankedPlaytime, TimeBucketPoint } from '../types';
 
-export function useDashboardData(guildId: number) {
+export function useDashboardData(guildId: number, autoRefreshEnabled: boolean) {
   const [overview, setOverview] = useState<OverviewStats | null>(null);
   const [games, setGames] = useState<RankedPlaytime[]>([]);
   const [users, setUsers] = useState<RankedPlaytime[]>([]);
@@ -44,12 +44,12 @@ export function useDashboardData(guildId: number) {
     };
 
     load();
-    const interval = window.setInterval(load, 30_000);
+    const interval = autoRefreshEnabled ? window.setInterval(load, 30_000) : null;
     return () => {
       cancelled = true;
-      window.clearInterval(interval);
+      if (interval) window.clearInterval(interval);
     };
-  }, [guildId]);
+  }, [guildId, autoRefreshEnabled]);
 
   return { overview, games, users, daily, active, loading, error };
 }

@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { getMe } from './api/adminApi';
+import { AppPreferencesProvider } from './context/AppPreferencesContext';
 import AppLayout from './layouts/AppLayout';
 import ActivityPage from './pages/ActivityPage';
 import AuditLogPage from './pages/AuditLogPage';
@@ -12,7 +13,6 @@ import GamesGraphPage from './pages/GamesGraphPage';
 import ImportsPage from './pages/ImportsPage';
 import LoginPage from './pages/LoginPage';
 import PlaytimeManagementPage from './pages/PlaytimeManagementPage';
-import SimpleListPage from './pages/SimpleListPage';
 import SystemStatusPage from './pages/SystemStatusPage';
 import UserProfilePage from './pages/UserProfilePage';
 import UsersGraphPage from './pages/UsersGraphPage';
@@ -39,12 +39,8 @@ export default function App() {
     const stored = localStorage.getItem('tracker_layout_mode');
     return stored === 'mobile' || stored === 'desktop' || stored === 'auto' ? stored : 'auto';
   });
+  const [autoRefreshEnabled, setAutoRefreshEnabled] = useState<boolean>(() => localStorage.getItem('tracker_auto_refresh') !== '0');
   const [deviceIsMobile, setDeviceIsMobile] = useState<boolean>(detectDeviceMobile);
-  const statusText = useMemo(
-    () =>
-      'This page scaffolds the complete feature area and can be extended with dedicated API-backed tables and controls.',
-    []
-  );
   const resolvedLayoutMode: LayoutMode = layoutPreference === 'auto' ? (deviceIsMobile ? 'mobile' : 'desktop') : layoutPreference;
 
   useEffect(() => {
@@ -61,6 +57,10 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('tracker_layout_mode', layoutPreference);
   }, [layoutPreference]);
+
+  useEffect(() => {
+    localStorage.setItem('tracker_auto_refresh', autoRefreshEnabled ? '1' : '0');
+  }, [autoRefreshEnabled]);
 
   useEffect(() => {
     if (!authed) {
@@ -102,7 +102,8 @@ export default function App() {
   const isAdmin = role === 'admin';
 
   return (
-    <Routes>
+    <AppPreferencesProvider value={{ autoRefreshEnabled }}>
+      <Routes>
       <Route
         element={
           <AppLayout
@@ -112,6 +113,8 @@ export default function App() {
             layoutMode={resolvedLayoutMode}
             layoutPreference={layoutPreference}
             onLayoutPreferenceChange={setLayoutPreference}
+            autoRefreshEnabled={autoRefreshEnabled}
+            onAutoRefreshChange={setAutoRefreshEnabled}
           />
         }
       >
@@ -128,9 +131,9 @@ export default function App() {
         {isAdmin && <Route path="/imports" element={<ImportsPage />} />}
         {isAdmin && <Route path="/audit-log" element={<AuditLogPage />} />}
         {isAdmin && <Route path="/system-status" element={<SystemStatusPage />} />}
-        {isAdmin && <Route path="/settings" element={<SimpleListPage title="Settings" text={statusText} />} />}
       </Route>
       <Route path="*" element={<Navigate to="/" />} />
-    </Routes>
+      </Routes>
+    </AppPreferencesProvider>
   );
 }
