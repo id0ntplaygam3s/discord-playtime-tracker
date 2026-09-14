@@ -2,57 +2,86 @@
 
 Self-hosted Discord activity and playtime tracker for private communities.
 
-It combines:
-- Automatically tracked Discord activity sessions
-- Historical/manual playtime entries
-- Immutable manual adjustments
+Track game activity your bot can observe in Discord, combine it with historical/manual records, and keep all totals auditable through source records and admin audit logs.
+
+## Table of Contents
+- [What It Does](#what-it-does)
+- [Quick Install (Recommended)](#quick-install-recommended)
+- [Prerequisites](#prerequisites)
+- [Discord Bot Setup](#discord-bot-setup)
+- [Environment Variables](#environment-variables)
+- [First Login](#first-login)
+- [Usage: Imports](#usage-imports)
+- [Operations](#operations)
+- [Technical Reference](#technical-reference)
+- [Troubleshooting](#troubleshooting)
+- [Privacy and Legal](#privacy-and-legal)
+
+## What It Does
+- Tracks Discord observed activity sessions from `playing` presence events
+- Shows per-user and per-game playtime totals
+- Shows currently active sessions
+- Supports historical/manual playtime (for pre-tracker hours)
+- Supports manual positive/negative adjustments
+- Writes audit log entries for admin changes
 
 Tracker behavior highlights:
 - Bot accounts are ignored for tracking and session logging.
 - On startup, all non-bot guild members are synchronized (including offline members) so user lists are complete.
 
-Totals are derived from source records and remain auditable.
-
-## Legal Documents
-- Terms of Service: [TERMS_OF_SERVICE.md](TERMS_OF_SERVICE.md)
-- Privacy Policy: [PRIVACY_POLICY.md](PRIVACY_POLICY.md)
-
-## 1. What This Tracks
-- Discord observed activity sessions (`playing` presence events)
-- Per-user and per-game playtime totals
-- Currently active sessions
-- Historical/manual playtime (for pre-tracker hours)
-- Manual positive/negative adjustments
-- Audit log entries for admin changes
-
-## 2. Important Discord Limitations
+Important limitations:
 - Discord activity is not an authoritative global playtime source like Steam.
 - Historical Discord playtime cannot be reconstructed unless this tracker already captured it.
 - Some activity may be hidden or unavailable depending on Discord privacy settings/intents/outages.
 - Bot downtime can create missing observed time.
 - Missing time is never faked; use manual adjustments for corrections.
 
-## 3. Architecture
-- Backend: FastAPI, SQLAlchemy, Alembic, discord.py
-- Database: PostgreSQL
-- Frontend: React + TypeScript + Vite + Recharts
-- Deployment: Docker Compose
+## Quick Install (Recommended)
+This is the fastest path for most users and pulls public images.
 
-## 4. Repository Layout
-- `backend/`: API, bot, services, models, migrations, tests
-- `frontend/`: Dashboard SPA
-- `docker-compose.yml`: default public-image deployment
-- `docker-compose.build.yml`: local source build override
-- `docker-compose.hub.yml`: optional explicit public-image compose
-- `docker-compose.truenas.yml`: TrueNAS-style deployment using `config/.env` and bind-mounted postgres data
-- `.env.example`: environment template
+1. Clone and enter project:
 
-## 5. Prerequisites
+```bash
+git clone <your-fork-or-repo-url>
+cd discord-game-tracker
+```
+
+2. Copy environment template and fill required values:
+
+```bash
+cp .env.example .env
+```
+
+3. Pull and start:
+
+```bash
+docker compose pull
+docker compose up -d
+```
+
+4. Run migrations (safe and idempotent):
+
+```bash
+docker compose exec backend alembic upgrade head
+```
+
+5. Check health:
+
+```bash
+curl -fsS http://localhost:${WEB_PORT}/api/health
+```
+
+6. Open dashboard:
+- `http://SERVER-IP:${WEB_PORT}`
+
+If you only wanted install steps, you can stop here.
+
+## Prerequisites
 - Linux server/VPS (recommended) with Docker Engine + Compose plugin
 - Discord bot token and guild ID
 - Private access path (for example Tailscale)
 
-## 6. Discord Bot Setup
+## Discord Bot Setup
 1. Open Discord Developer Portal.
 2. Create a new application.
 3. Add a Bot user.
@@ -74,25 +103,7 @@ For Discord app verification/profile setup, publish these two files to public UR
 - Terms of Service URL
 - Privacy Policy URL
 
-How to find `VITE_GUILD_ID` for the current dashboard build:
-1. Start the stack once so guild data is seeded.
-2. Run:
-
-```bash
-docker compose exec postgres psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "select id, discord_guild_id, name from guilds;"
-```
-
-3. Set `VITE_GUILD_ID` to the `id` column (internal DB id, usually `1` for a first install), not the Discord snowflake.
-
-If `VITE_GUILD_ID` is left as `0`, the API now falls back to the configured Discord guild's internal id automatically.
-
-## 7. Environment Variables
-Copy and edit:
-
-```bash
-cp .env.example .env
-```
-
+## Environment Variables
 Required for normal operation:
 - `DISCORD_BOT_TOKEN`
 - `DISCORD_GUILD_ID`
@@ -116,59 +127,17 @@ Optional:
 - `DOCKERHUB_NAMESPACE` (defaults to `id0ntplaygam3s`)
 - `APP_IMAGE_TAG` (defaults to `latest`)
 
-## 8. Default Self-Host: Pull Public Images (Recommended)
-This is the default deployment path.
+`VITE_GUILD_ID` note:
+- Set `VITE_GUILD_ID` to the internal DB guild id (`guilds.id`), not the Discord snowflake.
+- If set to `0`, the API falls back to the configured Discord guild's internal id automatically.
 
-1. Clone and enter project:
-
-```bash
-git clone <your-fork-or-repo-url>
-cd discord-game-tracker
-```
-
-2. Create `.env` from `.env.example` and fill values.
-
-3. Pull and start:
+How to query it after first start:
 
 ```bash
-docker compose pull
-docker compose up -d
+docker compose exec postgres psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "select id, discord_guild_id, name from guilds;"
 ```
 
-4. Check service status:
-
-```bash
-docker compose ps
-```
-
-5. Check health:
-
-```bash
-curl -fsS http://localhost:${WEB_PORT}/api/health
-```
-
-6. Run migrations (safe and idempotent):
-
-```bash
-docker compose exec backend alembic upgrade head
-```
-
-7. Open dashboard:
-- `http://SERVER-IP:${WEB_PORT}`
-
-### 8.1 TrueNAS-style deployment
-If your app data lives under a dataset path and you want `env_file` + host bind mounts, use:
-
-```bash
-docker compose -f docker-compose.truenas.yml --env-file ./config/.env pull
-docker compose -f docker-compose.truenas.yml --env-file ./config/.env up -d
-```
-
-The provided compose file expects:
-- `./config/.env`
-- `./postgres_data` directory for PostgreSQL persistence
-
-## 9. First Login Flow
+## First Login
 On login page:
 - `Continue as Guest` gives immediate read-only viewer access.
 - `Admin Sign In` uses `ADMIN_USERNAME` and `ADMIN_PASSWORD`.
@@ -179,11 +148,11 @@ User cleanup:
 - Admins can delete users from the Users page.
 - Deleting a user removes associated tracked sessions/manual records/adjustments via database cascade.
 
-## 10. Steam Profile Imports
+## Usage: Imports
+### Steam Profile Imports
 Steam imports are optional and admin-only.
 
-### 10.1 Configure
-Set in `.env`:
+Configure in `.env`:
 
 ```env
 STEAM_API_KEY=your_steam_web_api_key
@@ -195,8 +164,7 @@ Restart backend if changed:
 docker compose up -d
 ```
 
-### 10.2 Use In UI
-Go to `Imports` page.
+Use in UI (`Imports` page):
 1. Select Discord user.
 2. Enter Steam profile URL, vanity name, or SteamID64.
 3. Click `Preview Steam Games`.
@@ -208,7 +176,7 @@ Behavior:
 - No fake activity sessions are created.
 - Optional replace mode soft-deletes prior Steam imports from the same Steam profile tag before writing new records.
 
-## 11. CSV Imports (Historical Data)
+### CSV Imports (Historical Data)
 CSV header:
 
 ```csv
@@ -231,7 +199,50 @@ Flow:
 3. Confirm import
 4. Transactional write with audit
 
-## 12. API Summary
+## Operations
+### Check Services
+```bash
+docker compose ps
+```
+
+### Backups and Restore
+Backup:
+
+```bash
+docker compose exec postgres pg_dump -U "$POSTGRES_USER" "$POSTGRES_DB" > backup.sql
+```
+
+Restore:
+
+```bash
+docker compose exec -T postgres psql -U "$POSTGRES_USER" "$POSTGRES_DB" < backup.sql
+```
+
+### Upgrade Procedure
+```bash
+git pull
+docker compose pull
+docker compose up -d
+docker compose exec backend alembic upgrade head
+```
+
+## Technical Reference
+### Architecture
+- Backend: FastAPI, SQLAlchemy, Alembic, discord.py
+- Database: PostgreSQL
+- Frontend: React + TypeScript + Vite + Recharts
+- Deployment: Docker Compose
+
+### Repository Layout
+- `backend/`: API, bot, services, models, migrations, tests
+- `frontend/`: Dashboard SPA
+- `docker-compose.yml`: default public-image deployment
+- `docker-compose.build.yml`: local source build override
+- `docker-compose.hub.yml`: optional explicit public-image compose
+- `docker-compose.truenas.yml`: TrueNAS-style deployment using `config/.env` and bind-mounted postgres data
+- `.env.example`: environment template
+
+### API Summary
 - `GET /api/health`
 - `POST /api/auth/login`
 - `POST /api/auth/guest`
@@ -257,17 +268,25 @@ Flow:
 OpenAPI docs:
 - `/docs`
 
-## 13. Manual Build From Source (Alternative)
-Use this only if you want to build local images from source instead of pulling published images.
+### Alternative Deployments
+Manual build from source:
 
 ```bash
 docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
 ```
 
-This keeps the same runtime config but replaces prebuilt images with local builds.
+TrueNAS-style deployment:
 
-### Maintainer-only: publish to Docker Hub
-Publishing images is for maintainers/release automation, not end users.
+```bash
+docker compose -f docker-compose.truenas.yml --env-file ./config/.env pull
+docker compose -f docker-compose.truenas.yml --env-file ./config/.env up -d
+```
+
+The TrueNAS compose file expects:
+- `./config/.env`
+- `./postgres_data` directory for PostgreSQL persistence
+
+Maintainer-only publish flow:
 
 ```bash
 docker build -t <dockerhub-user>/discord-game-tracker-backend:<tag> ./backend
@@ -276,7 +295,7 @@ docker push <dockerhub-user>/discord-game-tracker-backend:<tag>
 docker push <dockerhub-user>/discord-game-tracker-frontend:<tag>
 ```
 
-## 14. Tailscale Deployment Model
+### Tailscale Deployment Model
 Recommended access model:
 - Linux server
 - Docker Compose stack
@@ -286,33 +305,7 @@ Recommended access model:
 Do not expose PostgreSQL publicly.
 Use Tailscale ACLs to restrict dashboard access.
 
-## 15. Backups and Restore
-Backup:
-
-```bash
-docker compose exec postgres pg_dump -U "$POSTGRES_USER" "$POSTGRES_DB" > backup.sql
-```
-
-Restore:
-
-```bash
-docker compose exec -T postgres psql -U "$POSTGRES_USER" "$POSTGRES_DB" < backup.sql
-```
-
-## 16. Upgrade Procedure
-```bash
-git pull
-docker compose pull
-docker compose up -d
-docker compose exec backend alembic upgrade head
-```
-
-For manual source-build deployment:
-```bash
-docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
-```
-
-## 17. Development and Tests
+### Development and Tests
 Backend tests:
 
 ```bash
@@ -328,14 +321,23 @@ npm run lint
 npm run build
 ```
 
-## 18. Troubleshooting
+### Release Checklist
+- `pytest -q` passes
+- `npm run lint` passes
+- `npm run build` passes
+- `docker compose build` passes
+- `docker compose up -d` healthy
+- `/api/health` returns OK
+- Guest and admin auth flows both work
+
+## Troubleshooting
 - `401 login`: verify `ADMIN_USERNAME`/`ADMIN_PASSWORD` and `SECRET_KEY`.
 - No live sessions: verify bot intents and Discord activity visibility.
 - Steam import fails: verify `STEAM_API_KEY` and profile visibility/identifier.
 - Empty dashboard or "Failed to load dashboard data": verify `VITE_GUILD_ID` is the internal DB guild id (query `guilds.id`) and not the Discord server ID. If `VITE_GUILD_ID=0`, the backend auto-resolves to the configured guild.
 - Postgres error `could not determine data type of parameter $4`: update backend image to a version that includes typed casts for optional `from/to` filters, then recreate backend.
 
-## 19. Privacy
+## Privacy and Legal
 Stored:
 - Guild ID/name
 - Discord user ID/username/display name/avatar URL
@@ -349,11 +351,6 @@ Not stored:
 - DMs
 - Voice audio
 
-## 20. Release Checklist
-- `pytest -q` passes
-- `npm run lint` passes
-- `npm run build` passes
-- `docker compose build` passes
-- `docker compose up -d` healthy
-- `/api/health` returns OK
-- Guest and admin auth flows both work
+Legal documents:
+- Terms of Service: [TERMS_OF_SERVICE.md](TERMS_OF_SERVICE.md)
+- Privacy Policy: [PRIVACY_POLICY.md](PRIVACY_POLICY.md)
