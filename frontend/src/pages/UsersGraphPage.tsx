@@ -1,14 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
 import TopUsersChart from '../charts/TopUsersChart';
 import { getTopUsers } from '../api/trackerApi';
-import { RankedPlaytime, SourceFilter } from '../types';
+import { RankedPlaytime } from '../types';
 import { formatDuration } from '../utils/time';
-
-const sourceOptions: SourceFilter[] = ['combined', 'automatic', 'historical', 'adjustments'];
 
 export default function UsersGraphPage() {
   const guildId = Number(import.meta.env.VITE_GUILD_ID || 0);
-  const [source, setSource] = useState<SourceFilter>('combined');
   const [rows, setRows] = useState<RankedPlaytime[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -19,7 +16,7 @@ export default function UsersGraphPage() {
       setLoading(true);
       setError(null);
       try {
-        const data = await getTopUsers(guildId, source, 30);
+        const data = await getTopUsers(guildId, 'combined', 30);
         if (!cancelled) setRows(data);
       } catch (err: any) {
         if (!cancelled) setError(err?.response?.data?.detail || 'Failed to load users graph');
@@ -32,7 +29,7 @@ export default function UsersGraphPage() {
     return () => {
       cancelled = true;
     };
-  }, [guildId, source]);
+  }, [guildId]);
 
   const totalSeconds = useMemo(() => rows.reduce((sum, row) => sum + row.total_seconds, 0), [rows]);
   const topUser = rows[0];
@@ -42,17 +39,7 @@ export default function UsersGraphPage() {
       <header className="panel graph-hero graph-hero-users">
         <div>
           <h2>User Activity (Graph)</h2>
-          <p className="subtle">A large comparison view of user activity and playtime totals.</p>
-        </div>
-        <div className="filters">
-          <label>Data source</label>
-          <select value={source} onChange={(e) => setSource(e.target.value as SourceFilter)}>
-            {sourceOptions.map((option) => (
-              <option value={option} key={option}>
-                {option[0].toUpperCase() + option.slice(1)}
-              </option>
-            ))}
-          </select>
+          <p className="subtle">A large comparison view of combined user activity and playtime totals.</p>
         </div>
         <div className="graph-stats">
           <div>

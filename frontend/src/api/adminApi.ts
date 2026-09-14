@@ -18,6 +18,25 @@ export async function addManualPlaytime(payload: {
   return client.post('/management/manual-playtime', payload);
 }
 
+export async function listManualPlaytime(guildId: number, userId?: number, gameId?: number, limit = 50) {
+  const { data } = await client.get('/management/manual-playtime', {
+    params: {
+      guild_id: guildId,
+      user_id: userId || undefined,
+      game_id: gameId || undefined,
+      limit,
+    },
+  });
+  return data;
+}
+
+export async function deleteManualPlaytime(guildId: number, entryId: number) {
+  const { data } = await client.delete(`/management/manual-playtime/${entryId}`, {
+    params: { guild_id: guildId },
+  });
+  return data;
+}
+
 export async function addAdjustment(payload: {
   guild_id: number;
   user_id: number;

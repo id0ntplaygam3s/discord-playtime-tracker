@@ -30,6 +30,7 @@ function renderSplitTooltip({ active, label, payload, splitPlayers }: any) {
     .map((item: any) => {
       const value = Number(item?.value || 0);
       const key = String(item?.dataKey || '');
+      if (key === 'total_seconds') return null;
       const player = splitPlayers?.find((p: any) => p.key === key);
       return {
         key,
@@ -38,6 +39,7 @@ function renderSplitTooltip({ active, label, payload, splitPlayers }: any) {
         value,
       };
     })
+    .filter((item: any) => item)
     .filter((item: any) => item.value > 0)
     .sort((a: any, b: any) => b.value - a.value);
 
@@ -107,20 +109,19 @@ export default function TopGamesChart({
           {splitMode && splitPlayers && splitPlayers.length > 0 ? (
             <>
               {showLegend && <Legend wrapperStyle={{ color: '#cbd5e1' }} />}
-              {splitPlayers.map((player) => (
+              {splitPlayers.map((player, idx) => (
                 <Bar key={player.key} dataKey={player.key} name={player.name} stackId="players" fill={player.color} onClick={handleBarClick}>
+                  {showValues && idx === splitPlayers.length - 1 && (
+                    <LabelList
+                      dataKey={player.key}
+                      valueAccessor={(entry: any) => Number(entry?.total_seconds || 0)}
+                      position="right"
+                      formatter={(value: unknown) => (Number(value || 0) >= 1800 ? formatLabelDuration(value) : '')}
+                      fill="#cbd5e1"
+                    />
+                  )}
                 </Bar>
               ))}
-              {showValues && (
-                <Bar dataKey="total_seconds" fill="transparent" legendType="none" isAnimationActive={false} onClick={handleBarClick}>
-                  <LabelList
-                    dataKey="total_seconds"
-                    position="right"
-                    formatter={(value: unknown) => (Number(value || 0) >= 1800 ? formatLabelDuration(value) : '')}
-                    fill="#cbd5e1"
-                  />
-                </Bar>
-              )}
             </>
           ) : (
             <Bar dataKey="total_seconds" fill="#FB7185" radius={[6, 6, 6, 6]} onClick={handleBarClick}>

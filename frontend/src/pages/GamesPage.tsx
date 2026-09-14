@@ -2,13 +2,11 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { getGameUsers, getTopGames } from '../api/trackerApi';
 import TopUsersChart from '../charts/TopUsersChart';
-import { SourceFilter } from '../types';
 import { formatDuration } from '../utils/time';
 
 export default function GamesPage() {
   const guildId = Number(import.meta.env.VITE_GUILD_ID || 0);
   const [rows, setRows] = useState<any[]>([]);
-  const [source, setSource] = useState<SourceFilter>('combined');
   const [selectedGameId, setSelectedGameId] = useState<number>(0);
   const [selectedUsers, setSelectedUsers] = useState<any[]>([]);
   const [showValues, setShowValues] = useState(true);
@@ -20,7 +18,7 @@ export default function GamesPage() {
   useEffect(() => {
     const load = async () => {
       try {
-        const games = await getTopGames(guildId, source, 25);
+        const games = await getTopGames(guildId, 'combined', 25);
         setRows(games);
         setSelectedGameId((current) => (games.some((g: any) => g.id === current) ? current : games[0]?.id || 0));
       } catch (err: any) {
@@ -28,7 +26,7 @@ export default function GamesPage() {
       }
     };
     void load();
-  }, [guildId, source]);
+  }, [guildId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -59,13 +57,6 @@ export default function GamesPage() {
       <div className="top-row">
         <h2>Games</h2>
         <div className="filters">
-          <label>Source</label>
-          <select value={source} onChange={(e) => setSource(e.target.value as SourceFilter)}>
-            <option value="combined">Combined</option>
-            <option value="automatic">Automatic</option>
-            <option value="historical">Historical</option>
-            <option value="adjustments">Adjustments</option>
-          </select>
           <label style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
             <input type="checkbox" checked={showValues} onChange={(e) => setShowValues(e.target.checked)} />
             Values

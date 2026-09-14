@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import { getActiveSessions, getDaily, getOverview, getTopGames, getTopUsers } from '../api/trackerApi';
-import { OverviewStats, RankedPlaytime, SourceFilter, TimeBucketPoint } from '../types';
+import { OverviewStats, RankedPlaytime, TimeBucketPoint } from '../types';
 
-export function useDashboardData(guildId: number, source: SourceFilter) {
+export function useDashboardData(guildId: number) {
   const [overview, setOverview] = useState<OverviewStats | null>(null);
   const [games, setGames] = useState<RankedPlaytime[]>([]);
   const [users, setUsers] = useState<RankedPlaytime[]>([]);
@@ -19,8 +19,8 @@ export function useDashboardData(guildId: number, source: SourceFilter) {
       try {
         const [overviewRes, gamesRes, usersRes, dailyRes, activeRes] = await Promise.all([
           getOverview(guildId),
-          getTopGames(guildId, source),
-          getTopUsers(guildId, source),
+          getTopGames(guildId, 'combined'),
+          getTopUsers(guildId, 'combined'),
           getDaily(guildId),
           getActiveSessions(guildId),
         ]);
@@ -49,7 +49,7 @@ export function useDashboardData(guildId: number, source: SourceFilter) {
       cancelled = true;
       window.clearInterval(interval);
     };
-  }, [guildId, source]);
+  }, [guildId]);
 
   return { overview, games, users, daily, active, loading, error };
 }

@@ -1,5 +1,6 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
-import { addAdjustment, addManualPlaytime, listGames, listUsers, setTotal } from '../api/adminApi';
+import { addAdjustment, addManualPlaytime, deleteManualPlaytime, listGames, listManualPlaytime, listUsers, setTotal } from '../api/adminApi';
+import { formatDuration } from '../utils/time';
 
 type OptionRow = {
   id: number;
@@ -15,14 +16,26 @@ function normalizeRows(payload: any): OptionRow[] {
   return [];
 }
 
+type ManualEntry = {
+  id: number;
+  user_id: number;
+  game_id: number;
+  duration_seconds: number;
+  source: 'historical' | 'imported' | 'correction';
+  note?: string | null;
+  created_at?: string;
+};
+
 export default function PlaytimeManagementPage() {
   const guildId = Number(import.meta.env.VITE_GUILD_ID || 0);
   const [users, setUsers] = useState<OptionRow[]>([]);
   const [games, setGames] = useState<OptionRow[]>([]);
   const [loadingUsers, setLoadingUsers] = useState(false);
   const [loadingGames, setLoadingGames] = useState(false);
+  const [loadingEntries, setLoadingEntries] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [entries, setEntries] = useState<ManualEntry[]>([]);
 
   const [userId, setUserId] = useState<number>(0);
   const [gameId, setGameId] = useState<number>(0);
@@ -70,9 +83,29 @@ export default function PlaytimeManagementPage() {
     setLoadingGames(false);
   };
 
+  const refreshEntries = async (nextUserId?: number, nextGameId?: number) => {
+    setLoadingEntries(true);
+    try {
+      const rows = await listManualPlaytime(guildId, nextUserId || userId || undefined, nextGameId || gameId || undefined, 40);
+      setEntries(Array.isArray(rows) ? rows : []);
+    } catch (err: any) {
+      setEntries([]);
+      setError(err?.response?.data?.detail || 'Failed to load manual entries');
+    } finally {
+      setLoadingEntries(false);
+    }
+  };
+
   useEffect(() => {
-    void refreshOptions();
+    void (async () => {
+      await refreshOptions();
+      await refreshEntries();
+    })();
   }, [guildId]);
+
+  useEffect(() => {
+    void refreshEntries();
+  }, [userId, gameId]);
 
   const selectedUser = useMemo(() => users.find((u) => u.id === Number(userId)), [users, userId]);
   const selectedGame = useMemo(() => games.find((g) => g.id === Number(gameId)), [games, gameId]);
@@ -111,6 +144,7 @@ export default function PlaytimeManagementPage() {
       });
       setMessage('Manual playtime saved.');
       await refreshOptions();
+      await refreshEntries();
     } catch (err: any) {
       setError(err?.response?.data?.detail || 'Failed to save manual playtime');
     }
@@ -135,6 +169,7 @@ export default function PlaytimeManagementPage() {
         reason: adjReason,
       });
       setMessage('Adjustment saved.');
+      await refreshEntries();
     } catch (err: any) {
       setError(err?.response?.data?.detail || 'Failed to save adjustment');
     }
@@ -158,8 +193,21 @@ export default function PlaytimeManagementPage() {
         reason: targetReason,
       });
       setMessage('Absolute total correction applied via adjustment.');
+      await refreshEntries();
     } catch (err: any) {
       setError(err?.response?.data?.detail || 'Failed to set absolute total');
+    }
+  };
+
+  const handleDeleteEntry = async (entryId: number) => {
+    setError(null);
+    setMessage(null);
+    try {
+      await deleteManualPlaytime(guildId, entryId);
+      setMessage('Manual entry deleted.');
+      await refreshEntries();
+    } catch (err: any) {
+      setError(err?.response?.data?.detail || 'Failed to delete manual entry');
     }
   };
 
@@ -266,6 +314,43 @@ export default function PlaytimeManagementPage() {
         </div>
         <button type="submit" disabled={!userId || !canUseSavedGame}>Apply Absolute Total</button>
       </form>
+
+      <div className="panel">
+        <h3>Recent Manual Entries</h3>
+        <div className="subtle" style={{ marginBottom: 8 }}>
+          Showing latest entries for the selected user/game. Use delete for mistaken manual records.
+        </div>
+        {loadingEntries && <div className="subtle">Loading entries...</div>}
+        {!loadingEntries && entries.length === 0 && <div className="empty">No manual entries found for this selection.</div>}
+        {!loadingEntries && entries.length > 0 && (
+          <div className="table-wrap">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>When</th>
+                  <th>Source</th>
+                  <th>Duration</th>
+                  <th>Note</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {entries.map((entry) => (
+                  <tr key={entry.id}>
+                    <td>{entry.created_at ? new Date(entry.created_at).toLocaleString() : '-'}</td>
+                    <td>{entry.source}</td>
+                    <td>{formatDuration(entry.duration_seconds)}</td>
+                    <td>{entry.note || '-'}</td>
+                    <td>
+                      <button type="button" onClick={() => void handleDeleteEntry(entry.id)}>Delete</button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

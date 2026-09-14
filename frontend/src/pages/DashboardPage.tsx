@@ -6,12 +6,10 @@ import TopUsersChart from '../charts/TopUsersChart';
 import CurrentSessions from '../components/CurrentSessions';
 import StatCard from '../components/StatCard';
 import { useDashboardData } from '../hooks/useDashboardData';
-import { SourceFilter } from '../types';
 import { formatDuration } from '../utils/time';
 
 export default function DashboardPage() {
   const guildId = Number(import.meta.env.VITE_GUILD_ID || 0);
-  const [source, setSource] = useState<SourceFilter>('combined');
   const [selectedGameId, setSelectedGameId] = useState<number>(0);
   const [selectedGameUsers, setSelectedGameUsers] = useState<any[]>([]);
   const [selectedGameLoading, setSelectedGameLoading] = useState(false);
@@ -22,7 +20,7 @@ export default function DashboardPage() {
   const [splitRows, setSplitRows] = useState<Array<Record<string, string | number>>>([]);
   const [splitPlayers, setSplitPlayers] = useState<Array<{ key: string; name: string; color: string }>>([]);
   const [splitError, setSplitError] = useState<string | null>(null);
-  const { overview, games, users, daily, active, loading, error } = useDashboardData(guildId, source);
+  const { overview, games, users, daily, active, loading, error } = useDashboardData(guildId);
 
   const palette = ['#22d3ee', '#f97316', '#4ade80', '#f43f5e', '#facc15', '#a78bfa', '#14b8a6', '#60a5fa'];
 
@@ -151,16 +149,9 @@ export default function DashboardPage() {
       <header className="top-row">
         <div>
           <h2>Discord Playtime Activity</h2>
-          <p className="subtle">Observed sessions + historical + adjustments</p>
+          <p className="subtle">Total combined playtime across tracked sessions and admin-managed records.</p>
         </div>
         <div className="filters">
-          <label>Data source</label>
-          <select value={source} onChange={(e) => setSource(e.target.value as SourceFilter)}>
-            <option value="combined">Combined</option>
-            <option value="automatic">Automatic</option>
-            <option value="historical">Historical</option>
-            <option value="adjustments">Adjustments</option>
-          </select>
           <label style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
             <input type="checkbox" checked={splitByPlayer} onChange={(e) => setSplitByPlayer(e.target.checked)} />
             Split games by player

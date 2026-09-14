@@ -2,14 +2,11 @@ import { useEffect, useMemo, useState } from 'react';
 import TopGamesChart from '../charts/TopGamesChart';
 import TopUsersChart from '../charts/TopUsersChart';
 import { getGameUsers, getTopGames } from '../api/trackerApi';
-import { RankedPlaytime, SourceFilter } from '../types';
+import { RankedPlaytime } from '../types';
 import { formatDuration } from '../utils/time';
-
-const sourceOptions: SourceFilter[] = ['combined', 'automatic', 'historical', 'adjustments'];
 
 export default function GamesGraphPage() {
   const guildId = Number(import.meta.env.VITE_GUILD_ID || 0);
-  const [source, setSource] = useState<SourceFilter>('combined');
   const [rows, setRows] = useState<RankedPlaytime[]>([]);
   const [selectedGameId, setSelectedGameId] = useState<number>(0);
   const [selectedUsers, setSelectedUsers] = useState<any[]>([]);
@@ -29,7 +26,7 @@ export default function GamesGraphPage() {
       setLoading(true);
       setError(null);
       try {
-        const data = await getTopGames(guildId, source, 30);
+        const data = await getTopGames(guildId, 'combined', 30);
         if (!cancelled) {
           setRows(data);
           setSelectedGameId((current) => (data.some((row) => row.id === current) ? current : data[0]?.id || 0));
@@ -45,7 +42,7 @@ export default function GamesGraphPage() {
     return () => {
       cancelled = true;
     };
-  }, [guildId, source]);
+  }, [guildId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -144,17 +141,9 @@ export default function GamesGraphPage() {
       <header className="panel graph-hero graph-hero-games">
         <div>
           <h2>Games (Graph)</h2>
-          <p className="subtle">A large comparison view of game playtime across your guild.</p>
+          <p className="subtle">Combined game playtime and player contribution breakdowns.</p>
         </div>
         <div className="filters">
-          <label>Data source</label>
-          <select value={source} onChange={(e) => setSource(e.target.value as SourceFilter)}>
-            {sourceOptions.map((option) => (
-              <option value={option} key={option}>
-                {option[0].toUpperCase() + option.slice(1)}
-              </option>
-            ))}
-          </select>
             <label style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
               <input type="checkbox" checked={splitByPlayer} onChange={(e) => setSplitByPlayer(e.target.checked)} />
               Split by player

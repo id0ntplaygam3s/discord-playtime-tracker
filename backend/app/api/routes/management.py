@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
@@ -34,6 +34,70 @@ from app.models import AuditAction
 from app.services.steam_import import fetch_steam_owned_games
 
 router = APIRouter(prefix="/management", tags=["management"])
+
+
+@router.get("/manual-playtime")
+def list_manual_playtime(
+    guild_id: int = Query(default=0),
+    user_id: int | None = Query(default=None),
+    game_id: int | None = Query(default=None),
+    limit: int = Query(default=50, ge=1, le=200),
+    _=Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    guild_id = resolve_guild_id(db, guild_id)
+    query = db.query(ManualPlaytime).filter(ManualPlaytime.guild_id == guild_id, ManualPlaytime.deleted_at.is_(None))
+    if user_id:
+        query = query.filter(ManualPlaytime.user_id == user_id)
+    if game_id:
+        query = query.filter(ManualPlaytime.game_id == game_id)
+
+    rows = query.order_by(ManualPlaytime.created_at.desc()).limit(limit).all()
+    return [
+        {
+            "id": row.id,
+            "user_id": row.user_id,
+            "game_id": row.game_id,
+            "duration_seconds": row.duration_seconds,
+            "source": row.source.value,
+            "note": row.note,
+            "created_at": row.created_at,
+        }
+        for row in rows
+    ]
+
+
+@router.delete("/manual-playtime/{entry_id}")
+def delete_manual_playtime(
+    entry_id: int,
+    guild_id: int = Query(default=0),
+    admin=Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    guild_id = resolve_guild_id(db, guild_id)
+    row = (
+        db.query(ManualPlaytime)
+        .filter(ManualPlaytime.id == entry_id, ManualPlaytime.guild_id == guild_id, ManualPlaytime.deleted_at.is_(None))
+        .first()
+    )
+    if not row:
+        raise HTTPException(status_code=404, detail="Manual playtime entry not found")
+
+    row.deleted_at = datetime.now(timezone.utc)
+    write_audit_log(
+        db,
+        guild_id=guild_id,
+        action=AuditAction.manual_playtime_soft_deleted,
+        admin_user_id=admin.id,
+        target_user_id=row.user_id,
+        target_game_id=row.game_id,
+        change_seconds=-int(row.duration_seconds or 0),
+        reason="Manual playtime entry deleted",
+        metadata_json={"manual_playtime_id": row.id},
+        commit=False,
+    )
+    db.commit()
+    return {"ok": True, "deleted_manual_playtime_id": row.id}
 
 
 @router.post("/manual-playtime")

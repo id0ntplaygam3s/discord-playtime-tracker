@@ -77,6 +77,14 @@ export default function ComparePage() {
     setSelected((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id].slice(0, 6)));
   };
 
+  const selectAll = () => {
+    setSelected(users.slice(0, 6).map((u) => u.id));
+  };
+
+  const clearSelected = () => {
+    setSelected([]);
+  };
+
   const selectedNames = useMemo(() => users.filter((u) => selected.includes(u.id)).map((u) => u.display_name), [users, selected]);
 
   return (
@@ -85,7 +93,11 @@ export default function ComparePage() {
 
       <div className="panel">
         <h2>Compare Users</h2>
-        <p className="subtle">Select 2-6 users and compare total/historical/automatic/adjustment playtime.</p>
+        <p className="subtle">Select 2-6 users and compare combined totals only.</p>
+        <div className="filters" style={{ marginBottom: 10 }}>
+          <button type="button" onClick={selectAll}>Select All (Max 6)</button>
+          <button type="button" onClick={clearSelected}>Clear</button>
+        </div>
         <div className="chip-wrap">
           {users.map((u) => (
             <button
@@ -109,19 +121,13 @@ export default function ComparePage() {
             <thead>
               <tr>
                 <th>User</th>
-                <th>Automatic</th>
-                <th>Historical</th>
-                <th>Adjustments</th>
-                <th>Combined</th>
+                <th>Total Playtime</th>
               </tr>
             </thead>
             <tbody>
               {compareRows.map((row) => (
                 <tr key={row.user_id}>
                   <td>{row.display_name}</td>
-                  <td>{formatDuration(row.automatic_seconds)}</td>
-                  <td>{formatDuration(row.historical_seconds)}</td>
-                  <td>{formatDuration(Math.abs(row.adjustment_seconds))}</td>
                   <td>{formatDuration(row.total_seconds)}</td>
                 </tr>
               ))}
