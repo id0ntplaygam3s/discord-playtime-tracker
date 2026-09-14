@@ -15,8 +15,7 @@ services:
     restart: unless-stopped
 
   backend:
-    build:
-      context: ./backend
+    image: ${DOCKERHUB_NAMESPACE:-id0ntplaygam3s}/discord-game-tracker-backend:${APP_IMAGE_TAG:-latest}
     environment:
       DISCORD_BOT_TOKEN: ${DISCORD_BOT_TOKEN}
       DISCORD_GUILD_ID: ${DISCORD_GUILD_ID}
@@ -44,11 +43,7 @@ services:
     restart: unless-stopped
 
   frontend:
-    build:
-      context: ./frontend
-      args:
-        VITE_API_BASE_URL: /api
-        VITE_GUILD_ID: ${VITE_GUILD_ID}
+    image: ${DOCKERHUB_NAMESPACE:-id0ntplaygam3s}/discord-game-tracker-frontend:${APP_IMAGE_TAG:-latest}
     ports:
       - "${WEB_PORT}:80"
     depends_on:

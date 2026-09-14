@@ -37,8 +37,9 @@ Totals are derived from source records and remain auditable.
 ## 4. Repository Layout
 - `backend/`: API, bot, services, models, migrations, tests
 - `frontend/`: Dashboard SPA
-- `docker-compose.yml`: source build deployment
-- `docker-compose.hub.yml`: optional prebuilt-image deployment
+- `docker-compose.yml`: default public-image deployment
+- `docker-compose.build.yml`: local source build override
+- `docker-compose.hub.yml`: optional explicit public-image compose
 - `.env.example`: environment template
 
 ## 5. Prerequisites
@@ -90,11 +91,11 @@ Optional:
 - `CORS_ALLOW_ORIGINS`
 - `APP_VERSION`
 - `ACCESS_TOKEN_EXPIRE_MINUTES`
-- `DOCKERHUB_NAMESPACE` (only for Docker Hub deployment option)
-- `APP_IMAGE_TAG` (only for Docker Hub deployment option)
+- `DOCKERHUB_NAMESPACE` (defaults to `id0ntplaygam3s`)
+- `APP_IMAGE_TAG` (defaults to `latest`)
 
-## 8. Self-Host Option A: Build From Source (No Docker Hub)
-This is the default and recommended method if you clone this repo directly.
+## 8. Default Self-Host: Pull Public Images (Recommended)
+This is the default deployment path.
 
 1. Clone and enter project:
 
@@ -105,10 +106,11 @@ cd discord-game-tracker
 
 2. Create `.env` from `.env.example` and fill values.
 
-3. Build and start:
+3. Pull and start:
 
 ```bash
-docker compose up -d --build
+docker compose pull
+docker compose up -d
 ```
 
 4. Check service status:
@@ -208,30 +210,17 @@ Flow:
 OpenAPI docs:
 - `/docs`
 
-## 13. Self-Host Option B: Deploy Public Prebuilt Images (Optional)
-End users should not build and push images as part of normal setup.
-
-If public images are already published by the maintainer, deployment is:
-
-1. Configure `.env` as normal.
-2. Set image selector values:
-
-```env
-DOCKERHUB_NAMESPACE=<publisher-namespace>
-APP_IMAGE_TAG=<release-tag>
-```
-
-3. Pull and start:
+## 13. Manual Build From Source (Alternative)
+Use this only if you want to build local images from source instead of pulling published images.
 
 ```bash
-docker compose -f docker-compose.hub.yml pull
-docker compose -f docker-compose.hub.yml up -d
+docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
 ```
 
-This path avoids local image builds on the target host.
+This keeps the same runtime config but replaces prebuilt images with local builds.
 
-### Maintainer-only: publish images
-Image publishing is for maintainers/release automation, not end users.
+### Maintainer-only: publish to Docker Hub
+Publishing images is for maintainers/release automation, not end users.
 
 ```bash
 docker build -t <dockerhub-user>/discord-game-tracker-backend:<tag> ./backend
@@ -266,14 +255,14 @@ docker compose exec -T postgres psql -U "$POSTGRES_USER" "$POSTGRES_DB" < backup
 ## 16. Upgrade Procedure
 ```bash
 git pull
-docker compose up -d --build
+docker compose pull
+docker compose up -d
 docker compose exec backend alembic upgrade head
 ```
 
-For public prebuilt-image deployment:
+For manual source-build deployment:
 ```bash
-docker compose -f docker-compose.hub.yml pull
-docker compose -f docker-compose.hub.yml up -d
+docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
 ```
 
 ## 17. Development and Tests
