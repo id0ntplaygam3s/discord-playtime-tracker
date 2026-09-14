@@ -8,7 +8,8 @@ from app.models import ManualSource
 class ManualPlaytimeCreate(BaseModel):
     guild_id: int
     user_id: int
-    game_id: int
+    game_id: int | None = None
+    custom_game_title: str | None = None
     hours: int = Field(ge=0, default=0)
     minutes: int = Field(ge=0, le=59, default=0)
     source: ManualSource

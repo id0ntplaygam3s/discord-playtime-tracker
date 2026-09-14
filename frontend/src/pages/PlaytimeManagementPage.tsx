@@ -1,10 +1,26 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { addAdjustment, addManualPlaytime, listGames, listUsers, setTotal } from '../api/adminApi';
 
+type OptionRow = {
+  id: number;
+  display_name: string;
+};
+
+function normalizeRows(payload: any): OptionRow[] {
+  if (Array.isArray(payload)) return payload;
+  if (Array.isArray(payload?.items)) return payload.items;
+  if (Array.isArray(payload?.results)) return payload.results;
+  if (Array.isArray(payload?.rows)) return payload.rows;
+  if (Array.isArray(payload?.data)) return payload.data;
+  return [];
+}
+
 export default function PlaytimeManagementPage() {
   const guildId = Number(import.meta.env.VITE_GUILD_ID || 0);
-  const [users, setUsers] = useState<any[]>([]);
-  const [games, setGames] = useState<any[]>([]);
+  const [users, setUsers] = useState<OptionRow[]>([]);
+  const [games, setGames] = useState<OptionRow[]>([]);
+  const [loadingUsers, setLoadingUsers] = useState(false);
+  const [loadingGames, setLoadingGames] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -14,6 +30,8 @@ export default function PlaytimeManagementPage() {
   const [minutes, setMinutes] = useState<number>(0);
   const [source, setSource] = useState<'historical' | 'imported' | 'correction'>('historical');
   const [note, setNote] = useState('');
+  const [useCustomGame, setUseCustomGame] = useState(false);
+  const [customGameTitle, setCustomGameTitle] = useState('');
 
   const [adjHours, setAdjHours] = useState<number>(0);
   const [adjMinutes, setAdjMinutes] = useState<number>(0);
@@ -24,35 +42,75 @@ export default function PlaytimeManagementPage() {
   const [targetMinutes, setTargetMinutes] = useState<number>(0);
   const [targetReason, setTargetReason] = useState('');
 
+  const refreshOptions = async () => {
+    setLoadingUsers(true);
+    setLoadingGames(true);
+
+    const [usersResult, gamesResult] = await Promise.allSettled([listUsers(guildId), listGames(guildId)]);
+
+    if (usersResult.status === 'fulfilled') {
+      const nextUsers = normalizeRows(usersResult.value);
+      setUsers(nextUsers);
+      setUserId((current) => (nextUsers.some((u) => u.id === current) ? current : nextUsers[0]?.id || 0));
+    } else {
+      setUsers([]);
+      setError(usersResult.reason?.response?.data?.detail || 'Failed to load users');
+    }
+
+    if (gamesResult.status === 'fulfilled') {
+      const nextGames = normalizeRows(gamesResult.value);
+      setGames(nextGames);
+      setGameId((current) => (nextGames.some((g) => g.id === current) ? current : nextGames[0]?.id || 0));
+    } else {
+      setGames([]);
+      setError(gamesResult.reason?.response?.data?.detail || 'Failed to load games');
+    }
+
+    setLoadingUsers(false);
+    setLoadingGames(false);
+  };
+
   useEffect(() => {
-    const load = async () => {
-      const [u, g] = await Promise.all([listUsers(guildId), listGames(guildId)]);
-      setUsers(u);
-      setGames(g);
-      if (u.length > 0) setUserId(u[0].id);
-      if (g.length > 0) setGameId(g[0].id);
-    };
-    load();
+    void refreshOptions();
   }, [guildId]);
 
   const selectedUser = useMemo(() => users.find((u) => u.id === Number(userId)), [users, userId]);
   const selectedGame = useMemo(() => games.find((g) => g.id === Number(gameId)), [games, gameId]);
+  const gameLabel = useCustomGame ? customGameTitle.trim() : selectedGame?.display_name;
+  const canUseSavedGame = gameId > 0;
 
   const handleManual = async (e: FormEvent) => {
     e.preventDefault();
     setError(null);
     setMessage(null);
+
+    const customTitle = customGameTitle.trim();
+    if (!userId) {
+      setError('Select a user before saving manual playtime');
+      return;
+    }
+    if (!useCustomGame && !gameId) {
+      setError('Select a game before saving manual playtime');
+      return;
+    }
+    if (useCustomGame && !customTitle) {
+      setError('Enter a custom game title or uncheck override');
+      return;
+    }
+
     try {
       await addManualPlaytime({
         guild_id: guildId,
         user_id: Number(userId),
-        game_id: Number(gameId),
+        game_id: useCustomGame ? undefined : Number(gameId),
+        custom_game_title: useCustomGame ? customTitle : undefined,
         hours: Number(hours),
         minutes: Number(minutes),
         source,
         note,
       });
       setMessage('Manual playtime saved.');
+      await refreshOptions();
     } catch (err: any) {
       setError(err?.response?.data?.detail || 'Failed to save manual playtime');
     }
@@ -62,6 +120,10 @@ export default function PlaytimeManagementPage() {
     e.preventDefault();
     setError(null);
     setMessage(null);
+    if (!userId || !gameId) {
+      setError('Select a user and game before saving an adjustment');
+      return;
+    }
     try {
       await addAdjustment({
         guild_id: guildId,
@@ -82,6 +144,10 @@ export default function PlaytimeManagementPage() {
     e.preventDefault();
     setError(null);
     setMessage(null);
+    if (!userId || !gameId) {
+      setError('Select a user and game before applying an absolute total');
+      return;
+    }
     try {
       const desiredTotalSeconds = Number(targetHours) * 3600 + Number(targetMinutes) * 60;
       await setTotal({
@@ -101,11 +167,16 @@ export default function PlaytimeManagementPage() {
     <div className="page-grid">
       <div className="panel">
         <h2>Playtime Management</h2>
-        <p className="subtle">Add historical records, corrections, and absolute total adjustments without faking sessions.</p>
+        <p className="subtle">Choose who and what to edit once, then apply manual time, adjustments, or absolute totals.</p>
+
+        <div className="subtle" style={{ marginTop: 8 }}>
+          Loading: {loadingUsers ? 'users...' : 'users ready'} / {loadingGames ? 'games...' : 'games ready'}
+        </div>
 
         <div className="form-row">
           <label>User</label>
           <select value={userId} onChange={(e) => setUserId(Number(e.target.value))}>
+            {users.length === 0 && <option value={0}>No users found</option>}
             {users.map((u) => (
               <option value={u.id} key={u.id}>
                 {u.display_name}
@@ -114,18 +185,42 @@ export default function PlaytimeManagementPage() {
           </select>
 
           <label>Game</label>
-          <select value={gameId} onChange={(e) => setGameId(Number(e.target.value))}>
-            {games.map((g) => (
-              <option value={g.id} key={g.id}>
-                {g.display_name}
-              </option>
-            ))}
-          </select>
+          {!useCustomGame ? (
+            <select value={gameId} onChange={(e) => setGameId(Number(e.target.value))}>
+              {games.length === 0 && <option value={0}>No games found yet</option>}
+              {games.map((g) => (
+                <option value={g.id} key={g.id}>
+                  {g.display_name}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <input
+              value={customGameTitle}
+              onChange={(e) => setCustomGameTitle(e.target.value)}
+              placeholder="Custom game title"
+            />
+          )}
+
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <input type="checkbox" checked={useCustomGame} onChange={(e) => setUseCustomGame(e.target.checked)} />
+            Override with custom game title
+          </label>
+
+          <button type="button" onClick={() => void refreshOptions()}>
+            Refresh Users/Games
+          </button>
         </div>
 
         <div className="subtle" style={{ marginTop: 8 }}>
-          Selected: {selectedUser?.display_name || '-'} / {selectedGame?.display_name || '-'}
+          Selected: {selectedUser?.display_name || '-'} / {gameLabel || '-'}
         </div>
+
+        {!useCustomGame && games.length === 0 && (
+          <div className="subtle" style={{ marginTop: 8 }}>
+            No existing game records found. Enable custom title override to create one with your manual entry.
+          </div>
+        )}
       </div>
 
       {error && <div className="error-box">{error}</div>}
@@ -143,7 +238,9 @@ export default function PlaytimeManagementPage() {
           </select>
         </div>
         <input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Note" />
-        <button type="submit">Save Manual Playtime</button>
+        <button type="submit" disabled={!userId || (!useCustomGame && !gameId) || (useCustomGame && !customGameTitle.trim())}>
+          Save Manual Playtime
+        </button>
       </form>
 
       <form className="panel" onSubmit={handleAdjustment}>
@@ -157,7 +254,7 @@ export default function PlaytimeManagementPage() {
           <input type="number" min={0} max={59} value={adjMinutes} onChange={(e) => setAdjMinutes(Number(e.target.value))} placeholder="Minutes" />
           <input value={adjReason} onChange={(e) => setAdjReason(e.target.value)} placeholder="Reason" />
         </div>
-        <button type="submit">Save Adjustment</button>
+        <button type="submit" disabled={!userId || !canUseSavedGame}>Save Adjustment</button>
       </form>
 
       <form className="panel" onSubmit={handleSetTotal}>
@@ -167,7 +264,7 @@ export default function PlaytimeManagementPage() {
           <input type="number" min={0} max={59} value={targetMinutes} onChange={(e) => setTargetMinutes(Number(e.target.value))} placeholder="Target minutes" />
           <input value={targetReason} onChange={(e) => setTargetReason(e.target.value)} placeholder="Reason" />
         </div>
-        <button type="submit">Apply Absolute Total</button>
+        <button type="submit" disabled={!userId || !canUseSavedGame}>Apply Absolute Total</button>
       </form>
     </div>
   );

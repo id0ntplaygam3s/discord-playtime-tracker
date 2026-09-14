@@ -39,12 +39,19 @@ router = APIRouter(prefix="/management", tags=["management"])
 @router.post("/manual-playtime")
 def add_manual_playtime(payload: ManualPlaytimeCreate, admin=Depends(require_admin), db: Session = Depends(get_db)):
     guild_id = resolve_guild_id(db, payload.guild_id)
+    game_id = payload.game_id
+    custom_title = (payload.custom_game_title or "").strip()
+    if custom_title:
+        game = get_or_create_game(db, custom_title, None, None)
+        game_id = game.id
+    if not game_id:
+        raise HTTPException(status_code=400, detail="Select a game or provide a custom game title")
     duration = to_seconds(payload.hours, payload.minutes)
     record = create_manual_playtime(
         db,
         guild_id=guild_id,
         user_id=payload.user_id,
-        game_id=payload.game_id,
+        game_id=game_id,
         duration_seconds=duration,
         source=payload.source,
         note=payload.note,

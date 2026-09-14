@@ -8,7 +8,8 @@ export async function getMe(): Promise<{ username: string; role: 'admin' | 'view
 export async function addManualPlaytime(payload: {
   guild_id: number;
   user_id: number;
-  game_id: number;
+  game_id?: number;
+  custom_game_title?: string;
   hours: number;
   minutes: number;
   source: 'historical' | 'imported' | 'correction';
@@ -96,6 +97,6 @@ export async function deleteUser(guildId: number, userId: number) {
 }
 
 export async function listGames(guildId: number) {
-  const { data } = await client.get('/games', { params: { guild_id: guildId, page: 1, page_size: 200 } });
+  const { data } = await client.get('/games', { params: { guild_id: guildId, page: 1, page_size: 100 } });
   return data;
 }
