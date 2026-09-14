@@ -23,6 +23,40 @@ function resolveGameId(entry: any): number {
   return Number(raw || 0);
 }
 
+function renderSplitTooltip({ active, label, payload, splitPlayers }: any) {
+  if (!active || !payload || payload.length === 0) return null;
+
+  const rows = payload
+    .map((item: any) => {
+      const value = Number(item?.value || 0);
+      const key = String(item?.dataKey || '');
+      const player = splitPlayers?.find((p: any) => p.key === key);
+      return {
+        key,
+        name: player?.name || key,
+        color: player?.color || item?.color || '#cbd5e1',
+        value,
+      };
+    })
+    .filter((item: any) => item.value > 0)
+    .sort((a: any, b: any) => b.value - a.value);
+
+  if (rows.length === 0) return null;
+
+  return (
+    <div style={{ background: '#0b1117', border: '1px solid #1f2937', padding: '8px 10px', borderRadius: 8 }}>
+      <div style={{ color: '#e2e8f0', marginBottom: 6 }}>{String(label)}</div>
+      {rows.map((row: any) => (
+        <div key={row.key} style={{ display: 'flex', gap: 8, alignItems: 'center', color: '#cbd5e1', marginBottom: 2 }}>
+          <span style={{ width: 10, height: 10, borderRadius: 999, background: row.color, display: 'inline-block' }} />
+          <span>{row.name}</span>
+          <span style={{ marginLeft: 'auto' }}>{formatDuration(row.value)}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export default function TopGamesChart({
   data,
   title = 'Most Played Games',
@@ -68,22 +102,25 @@ export default function TopGamesChart({
             }}
             labelFormatter={(label) => String(label)}
             contentStyle={{ background: '#0b1117', border: '1px solid #1f2937' }}
+            content={splitMode ? (props) => renderSplitTooltip({ ...props, splitPlayers }) : undefined}
           />
           {splitMode && splitPlayers && splitPlayers.length > 0 ? (
             <>
               {showLegend && <Legend wrapperStyle={{ color: '#cbd5e1' }} />}
-              {splitPlayers.map((player, idx) => (
+              {splitPlayers.map((player) => (
                 <Bar key={player.key} dataKey={player.key} name={player.name} stackId="players" fill={player.color} onClick={handleBarClick}>
-                  {showValues && idx === splitPlayers.length - 1 && (
-                    <LabelList
-                      dataKey={player.key}
-                      position="right"
-                      formatter={(value: unknown) => (Number(value || 0) > 0 ? formatLabelDuration(value) : '')}
-                      fill="#cbd5e1"
-                    />
-                  )}
                 </Bar>
               ))}
+              {showValues && (
+                <Bar dataKey="total_seconds" fill="transparent" legendType="none" isAnimationActive={false} onClick={handleBarClick}>
+                  <LabelList
+                    dataKey="total_seconds"
+                    position="right"
+                    formatter={(value: unknown) => (Number(value || 0) >= 1800 ? formatLabelDuration(value) : '')}
+                    fill="#cbd5e1"
+                  />
+                </Bar>
+              )}
             </>
           ) : (
             <Bar dataKey="total_seconds" fill="#FB7185" radius={[6, 6, 6, 6]} onClick={handleBarClick}>
