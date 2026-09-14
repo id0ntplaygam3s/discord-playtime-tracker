@@ -170,6 +170,50 @@ button {
   background: linear-gradient(180deg, rgba(17, 24, 39, 0.95), rgba(5, 9, 14, 0.95));
 }
 
+.graph-hero {
+  position: relative;
+  overflow: hidden;
+}
+
+.graph-hero::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(125deg, rgba(255, 255, 255, 0.04), transparent 50%);
+}
+
+.graph-hero-games {
+  background:
+    radial-gradient(circle at 15% 0%, rgba(251, 113, 133, 0.2), transparent 40%),
+    linear-gradient(180deg, rgba(17, 24, 39, 0.95), rgba(5, 9, 14, 0.95));
+}
+
+.graph-hero-users {
+  background:
+    radial-gradient(circle at 85% 0%, rgba(34, 211, 238, 0.2), transparent 40%),
+    linear-gradient(180deg, rgba(17, 24, 39, 0.95), rgba(5, 9, 14, 0.95));
+}
+
+.graph-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.graph-stats > div {
+  border: 1px solid #223041;
+  border-radius: 10px;
+  padding: 10px;
+  display: grid;
+  gap: 4px;
+}
+
+.graph-stats strong {
+  font-size: 1.1rem;
+}
+
 .list-grid {
   display: grid;
   gap: 12px;
@@ -325,6 +369,10 @@ button {
   .form-row,
   .form-grid-3,
   .form-grid-4 {
+    grid-template-columns: 1fr;
+  }
+
+  .graph-stats {
     grid-template-columns: 1fr;
   }
 }

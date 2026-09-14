@@ -16,13 +16,13 @@ export async function getOverview(guildId: number): Promise<OverviewStats> {
   return data;
 }
 
-export async function getTopGames(guildId: number, source: SourceFilter): Promise<RankedPlaytime[]> {
-  const { data } = await client.get('/stats/games', { params: { guild_id: guildId, source, limit: 10 } });
+export async function getTopGames(guildId: number, source: SourceFilter, limit = 10): Promise<RankedPlaytime[]> {
+  const { data } = await client.get('/stats/games', { params: { guild_id: guildId, source, limit } });
   return data;
 }
 
-export async function getTopUsers(guildId: number, source: SourceFilter): Promise<RankedPlaytime[]> {
-  const { data } = await client.get('/stats/users', { params: { guild_id: guildId, source, limit: 10 } });
+export async function getTopUsers(guildId: number, source: SourceFilter, limit = 10): Promise<RankedPlaytime[]> {
+  const { data } = await client.get('/stats/users', { params: { guild_id: guildId, source, limit } });
   return data;
 }
 

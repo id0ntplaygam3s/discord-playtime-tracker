@@ -3,7 +3,9 @@ import { NavLink, Outlet } from 'react-router-dom';
 const baseNavItems = [
   ['/', 'Dashboard'],
   ['/games', 'Games'],
+  ['/games-graph', 'Games (Graph)'],
   ['/users', 'Users'],
+  ['/users-graph', 'User Activity (Graph)'],
   ['/activity', 'Activity'],
   ['/compare', 'Compare'],
 ];

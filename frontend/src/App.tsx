@@ -8,12 +8,14 @@ import ComparePage from './pages/ComparePage';
 import DashboardPage from './pages/DashboardPage';
 import GameProfilePage from './pages/GameProfilePage';
 import GamesPage from './pages/GamesPage';
+import GamesGraphPage from './pages/GamesGraphPage';
 import ImportsPage from './pages/ImportsPage';
 import LoginPage from './pages/LoginPage';
 import PlaytimeManagementPage from './pages/PlaytimeManagementPage';
 import SimpleListPage from './pages/SimpleListPage';
 import SystemStatusPage from './pages/SystemStatusPage';
 import UserProfilePage from './pages/UserProfilePage';
+import UsersGraphPage from './pages/UsersGraphPage';
 import UsersPage from './pages/UsersPage';
 
 function isAuthenticated(): boolean {
@@ -73,8 +75,10 @@ export default function App() {
       <Route element={<AppLayout isAdmin={isAdmin} onSignOut={handleSignOut} onSwitchToAdmin={handleSwitchToAdmin} />}>
         <Route path="/" element={<DashboardPage />} />
         <Route path="/games" element={<GamesPage />} />
+        <Route path="/games-graph" element={<GamesGraphPage />} />
         <Route path="/games/:gameId" element={<GameProfilePage />} />
         <Route path="/users" element={<UsersPage />} />
+        <Route path="/users-graph" element={<UsersGraphPage />} />
         <Route path="/users/:userId" element={<UserProfilePage />} />
         <Route path="/activity" element={<ActivityPage />} />
         <Route path="/compare" element={<ComparePage />} />
