@@ -75,13 +75,27 @@ export default function PlaytimeManagementPage() {
   const [targetMinutes, setTargetMinutes] = useState<number>(0);
   const [targetReason, setTargetReason] = useState('');
 
+  const upsertGameOption = (id: number, displayName?: string) => {
+    if (!id) return;
+    setGames((current) => {
+      if (current.some((g) => g.id === id)) return current;
+      return [{ id, display_name: displayName || `Game #${id}` }, ...current];
+    });
+  };
+
   const refreshOptions = async (manageAll: boolean = canManageAll) => {
     if (!manageAll) {
       setLoadingGames(true);
       try {
         const gamesResult = await listGames(guildId);
         const nextGames = normalizeRows(gamesResult);
-        setGames(nextGames);
+        setGames((current) => {
+          const currentOption = current.find((g) => g.id === gameId);
+          if (currentOption && !nextGames.some((g) => g.id === currentOption.id)) {
+            return [currentOption, ...nextGames];
+          }
+          return nextGames;
+        });
         setGameId((current) => (current > 0 ? current : nextGames[0]?.id || 0));
       } catch (err: any) {
         setGames([]);
@@ -108,7 +122,13 @@ export default function PlaytimeManagementPage() {
 
     if (gamesResult.status === 'fulfilled') {
       const nextGames = normalizeRows(gamesResult.value);
-      setGames(nextGames);
+      setGames((current) => {
+        const currentOption = current.find((g) => g.id === gameId);
+        if (currentOption && !nextGames.some((g) => g.id === currentOption.id)) {
+          return [currentOption, ...nextGames];
+        }
+        return nextGames;
+      });
       setGameId((current) => (current > 0 ? current : nextGames[0]?.id || 0));
     } else {
       setGames([]);
@@ -221,26 +241,30 @@ export default function PlaytimeManagementPage() {
     e.preventDefault();
     setError(null);
     setMessage(null);
-    if (hasUnsavedCustomTarget) {
-      setError('Save manual playtime once to create/select the custom title before adding adjustments.');
-      return;
-    }
-    if (!userId || !gameId) {
+    const customTitle = customGameTitle.trim();
+    if (!userId || (!useCustomGame && !gameId) || (useCustomGame && !customTitle)) {
       setError('Select a user and game before saving an adjustment');
       return;
     }
     try {
-      await addAdjustment({
+      const result = await addAdjustment({
         guild_id: guildId,
         user_id: Number(userId),
-        game_id: Number(gameId),
+        game_id: useCustomGame ? undefined : Number(gameId),
+        use_custom_game_title: useCustomGame,
+        custom_game_title: useCustomGame ? customTitle : undefined,
         hours: Number(adjHours),
         minutes: Number(adjMinutes),
         sign: Number(adjSign),
         reason: adjReason,
       });
+      if (result?.game_id) {
+        upsertGameOption(Number(result.game_id), result?.game_display_name);
+        setGameId(Number(result.game_id));
+      }
       setMessage('Adjustment saved.');
-      await refreshEntries();
+      await refreshOptions();
+      await refreshEntries(Number(userId), result?.game_id ? Number(result.game_id) : undefined, canManageAll);
     } catch (err: any) {
       setError(err?.response?.data?.detail || 'Failed to save adjustment');
     }
@@ -250,25 +274,29 @@ export default function PlaytimeManagementPage() {
     e.preventDefault();
     setError(null);
     setMessage(null);
-    if (hasUnsavedCustomTarget) {
-      setError('Save manual playtime once to create/select the custom title before setting an absolute total.');
-      return;
-    }
-    if (!userId || !gameId) {
+    const customTitle = customGameTitle.trim();
+    if (!userId || (!useCustomGame && !gameId) || (useCustomGame && !customTitle)) {
       setError('Select a user and game before applying an absolute total');
       return;
     }
     try {
       const desiredTotalSeconds = Number(targetHours) * 3600 + Number(targetMinutes) * 60;
-      await setTotal({
+      const result = await setTotal({
         guild_id: guildId,
         user_id: Number(userId),
-        game_id: Number(gameId),
+        game_id: useCustomGame ? undefined : Number(gameId),
+        use_custom_game_title: useCustomGame,
+        custom_game_title: useCustomGame ? customTitle : undefined,
         desired_total_seconds: desiredTotalSeconds,
         reason: targetReason,
       });
+      if (result?.game_id) {
+        upsertGameOption(Number(result.game_id), result?.game_display_name);
+        setGameId(Number(result.game_id));
+      }
       setMessage('Absolute total correction applied via adjustment.');
-      await refreshEntries();
+      await refreshOptions();
+      await refreshEntries(Number(userId), result?.game_id ? Number(result.game_id) : undefined, canManageAll);
     } catch (err: any) {
       setError(err?.response?.data?.detail || 'Failed to set absolute total');
     }
@@ -397,7 +425,7 @@ export default function PlaytimeManagementPage() {
             <input type="number" min={0} max={59} value={adjMinutes} onChange={(e) => setAdjMinutes(Number(e.target.value))} placeholder="Minutes" />
             <input value={adjReason} onChange={(e) => setAdjReason(e.target.value)} placeholder="Reason" />
           </div>
-          <button type="submit" disabled={!userId || !canUseSavedGame || hasUnsavedCustomTarget}>Save Adjustment</button>
+          <button type="submit" disabled={!userId || (!useCustomGame && !canUseSavedGame) || (useCustomGame && !customGameTitle.trim())}>Save Adjustment</button>
         </form>
       )}
 
@@ -412,7 +440,7 @@ export default function PlaytimeManagementPage() {
             <input type="number" min={0} max={59} value={targetMinutes} onChange={(e) => setTargetMinutes(Number(e.target.value))} placeholder="Target minutes" />
             <input value={targetReason} onChange={(e) => setTargetReason(e.target.value)} placeholder="Reason" />
           </div>
-          <button type="submit" disabled={!userId || !canUseSavedGame || hasUnsavedCustomTarget}>Apply Absolute Total</button>
+          <button type="submit" disabled={!userId || (!useCustomGame && !canUseSavedGame) || (useCustomGame && !customGameTitle.trim())}>Apply Absolute Total</button>
         </form>
       )}
 

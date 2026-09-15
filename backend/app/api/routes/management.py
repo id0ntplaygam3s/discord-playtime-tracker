@@ -329,13 +329,30 @@ def delete_own_manual_playtime(
 @router.post("/adjustments")
 def add_adjustment(payload: AdjustmentCreate, admin=Depends(require_permission(PermissionCode.PLAYTIME_MANAGE_ALL)), db: Session = Depends(get_db)):
     guild_id = resolve_guild_id(db, payload.guild_id)
+    game_id = payload.game_id
+    custom_title = (payload.custom_game_title or "").strip()
+    if payload.use_custom_game_title:
+        if len(custom_title) > 255:
+            raise HTTPException(status_code=400, detail="custom_game_title must be 255 characters or fewer")
+        game = _create_new_custom_game(db, custom_title)
+        game_id = game.id
+    elif custom_title:
+        raise HTTPException(status_code=400, detail="custom_game_title provided without enabling override")
+    if not game_id:
+        raise HTTPException(status_code=400, detail="Select a game or provide a custom game title")
+
+    selected_game = db.query(Game).filter(Game.id == game_id).first()
+    if not selected_game:
+        raise HTTPException(status_code=404, detail="Game not found")
+    selected_game = resolve_canonical_game(db, selected_game)
+
     seconds = to_seconds(abs(payload.hours), abs(payload.minutes)) * (1 if payload.sign >= 0 else -1)
     try:
         row = create_adjustment(
             db,
             guild_id=guild_id,
             user_id=payload.user_id,
-            game_id=payload.game_id,
+            game_id=selected_game.id,
             adjustment_seconds=seconds,
             reason=payload.reason,
             created_by=admin.admin_user_id,
@@ -345,18 +362,40 @@ def add_adjustment(payload: AdjustmentCreate, admin=Depends(require_permission(P
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    return {"id": row.id, "adjustment_seconds": row.adjustment_seconds}
+    return {
+        "id": row.id,
+        "adjustment_seconds": row.adjustment_seconds,
+        "game_id": selected_game.id,
+        "game_display_name": selected_game.display_name,
+    }
 
 
 @router.post("/set-total")
 def set_total(payload: SetAbsoluteTotalRequest, admin=Depends(require_permission(PermissionCode.PLAYTIME_MANAGE_ALL)), db: Session = Depends(get_db)):
     guild_id = resolve_guild_id(db, payload.guild_id)
+    game_id = payload.game_id
+    custom_title = (payload.custom_game_title or "").strip()
+    if payload.use_custom_game_title:
+        if len(custom_title) > 255:
+            raise HTTPException(status_code=400, detail="custom_game_title must be 255 characters or fewer")
+        game = _create_new_custom_game(db, custom_title)
+        game_id = game.id
+    elif custom_title:
+        raise HTTPException(status_code=400, detail="custom_game_title provided without enabling override")
+    if not game_id:
+        raise HTTPException(status_code=400, detail="Select a game or provide a custom game title")
+
+    selected_game = db.query(Game).filter(Game.id == game_id).first()
+    if not selected_game:
+        raise HTTPException(status_code=404, detail="Game not found")
+    selected_game = resolve_canonical_game(db, selected_game)
+
     try:
         adjustment = set_absolute_total(
             db,
             guild_id=guild_id,
             user_id=payload.user_id,
-            game_id=payload.game_id,
+            game_id=selected_game.id,
             desired_total_seconds=payload.desired_total_seconds,
             reason=payload.reason,
             created_by=admin.admin_user_id,
@@ -366,7 +405,12 @@ def set_total(payload: SetAbsoluteTotalRequest, admin=Depends(require_permission
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    return {"id": adjustment.id, "delta_seconds": adjustment.adjustment_seconds}
+    return {
+        "id": adjustment.id,
+        "delta_seconds": adjustment.adjustment_seconds,
+        "game_id": selected_game.id,
+        "game_display_name": selected_game.display_name,
+    }
 
 
 @router.post("/csv/preview")

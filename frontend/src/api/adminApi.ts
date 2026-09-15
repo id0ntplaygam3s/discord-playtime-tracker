@@ -101,23 +101,29 @@ export async function addOwnManualPlaytime(payload: {
 export async function addAdjustment(payload: {
   guild_id: number;
   user_id: number;
-  game_id: number;
+  game_id?: number;
+  use_custom_game_title?: boolean;
+  custom_game_title?: string;
   hours: number;
   minutes: number;
   sign: number;
   reason: string;
 }) {
-  return client.post('/management/adjustments', payload);
+  const { data } = await client.post('/management/adjustments', payload);
+  return data;
 }
 
 export async function setTotal(payload: {
   guild_id: number;
   user_id: number;
-  game_id: number;
+  game_id?: number;
+  use_custom_game_title?: boolean;
+  custom_game_title?: string;
   desired_total_seconds: number;
   reason: string;
 }) {
-  return client.post('/management/set-total', payload);
+  const { data } = await client.post('/management/set-total', payload);
+  return data;
 }
 
 export async function csvPreview(file: File) {

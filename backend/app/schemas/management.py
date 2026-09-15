@@ -20,7 +20,9 @@ class ManualPlaytimeCreate(BaseModel):
 class AdjustmentCreate(BaseModel):
     guild_id: int
     user_id: int
-    game_id: int
+    game_id: int | None = None
+    use_custom_game_title: bool = False
+    custom_game_title: str | None = None
     hours: int = 0
     minutes: int = 0
     sign: int = Field(default=1)
@@ -30,7 +32,9 @@ class AdjustmentCreate(BaseModel):
 class SetAbsoluteTotalRequest(BaseModel):
     guild_id: int
     user_id: int
-    game_id: int
+    game_id: int | None = None
+    use_custom_game_title: bool = False
+    custom_game_title: str | None = None
     desired_total_seconds: int = Field(gt=0)
     reason: str
 
