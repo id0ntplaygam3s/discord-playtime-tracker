@@ -9,6 +9,8 @@ import { formatDuration } from '../utils/time';
 
 export default function GamesPage() {
   const guildId = Number(import.meta.env.VITE_GUILD_ID || 0);
+  const ALL_ROWS_LIMIT = 5000;
+  const [rowLimit, setRowLimit] = useState<number>(30);
   const [rows, setRows] = useState<any[]>([]);
   const [selectedGameId, setSelectedGameId] = useState<number>(0);
   const [selectedUsers, setSelectedUsers] = useState<any[]>([]);
@@ -24,7 +26,7 @@ export default function GamesPage() {
   useEffect(() => {
     const load = async () => {
       try {
-        const games = await getTopGames(guildId, 'combined', 25);
+        const games = await getTopGames(guildId, 'combined', rowLimit <= 0 ? ALL_ROWS_LIMIT : rowLimit);
         setRows(games);
         setSelectedGameId((current) => (games.some((g: any) => g.id === current) ? current : games[0]?.id || 0));
       } catch (err: any) {
@@ -32,7 +34,7 @@ export default function GamesPage() {
       }
     };
     void load();
-  }, [guildId]);
+  }, [guildId, rowLimit]);
 
   useEffect(() => {
     let cancelled = false;
@@ -74,6 +76,16 @@ export default function GamesPage() {
         <h2>Games</h2>
         <div className="filters">
           <label style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+            Rows
+            <select value={String(rowLimit)} onChange={(e) => setRowLimit(Number(e.target.value))}>
+              <option value="30">30</option>
+              <option value="50">50</option>
+              <option value="100">100</option>
+              <option value="250">250</option>
+              <option value="0">All</option>
+            </select>
+          </label>
+          <label style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
             <input type="checkbox" checked={showValues} onChange={(e) => setShowValues(e.target.checked)} />
             Values
           </label>
@@ -85,7 +97,9 @@ export default function GamesPage() {
       <section className="two-col">
         <div className="panel">
           <h3>Game Totals</h3>
-          <div className="subtle" style={{ marginBottom: 10 }}>Click any row to view who contributes to that total.</div>
+          <div className="subtle" style={{ marginBottom: 10 }}>
+            Showing {rows.length} games. Click any row to view who contributes to that total.
+          </div>
           <div className="table-wrap">
             <table className="data-table">
               <thead>

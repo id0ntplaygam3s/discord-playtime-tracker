@@ -44,7 +44,14 @@ export default function TopUsersChart({
             labelFormatter={(label) => String(label)}
             contentStyle={{ background: '#0b1117', border: '1px solid #1f2937' }}
           />
-          <Bar dataKey="total_seconds" fill={barColor} radius={[6, 6, 6, 6]}>
+          <Bar
+            dataKey="total_seconds"
+            fill={barColor}
+            radius={[6, 6, 6, 6]}
+            isAnimationActive
+            animationDuration={700}
+            animationEasing="ease-out"
+          >
             {data.map((row) => (
               <Cell key={`user-${row.id}`} fill={rowColorsByName?.[row.name] || barColor} />
             ))}

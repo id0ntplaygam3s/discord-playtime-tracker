@@ -7,6 +7,8 @@ import { formatDuration } from '../utils/time';
 
 export default function GamesGraphPage() {
   const guildId = Number(import.meta.env.VITE_GUILD_ID || 0);
+  const ALL_ROWS_LIMIT = 5000;
+  const [rowLimit, setRowLimit] = useState<number>(30);
   const [rows, setRows] = useState<RankedPlaytime[]>([]);
   const [selectedGameId, setSelectedGameId] = useState<number>(0);
   const [selectedUsers, setSelectedUsers] = useState<any[]>([]);
@@ -26,7 +28,7 @@ export default function GamesGraphPage() {
       setLoading(true);
       setError(null);
       try {
-        const data = await getTopGames(guildId, 'combined', 30);
+        const data = await getTopGames(guildId, 'combined', rowLimit <= 0 ? ALL_ROWS_LIMIT : rowLimit);
         if (!cancelled) {
           setRows(data);
           setSelectedGameId((current) => (data.some((row) => row.id === current) ? current : data[0]?.id || 0));
@@ -42,7 +44,7 @@ export default function GamesGraphPage() {
     return () => {
       cancelled = true;
     };
-  }, [guildId]);
+  }, [guildId, rowLimit]);
 
   useEffect(() => {
     let cancelled = false;
@@ -145,6 +147,16 @@ export default function GamesGraphPage() {
         </div>
         <div className="filters">
             <label style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+              Rows
+              <select value={String(rowLimit)} onChange={(e) => setRowLimit(Number(e.target.value))}>
+                <option value="30">30</option>
+                <option value="50">50</option>
+                <option value="100">100</option>
+                <option value="250">250</option>
+                <option value="0">All</option>
+              </select>
+            </label>
+            <label style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
               <input type="checkbox" checked={splitByPlayer} onChange={(e) => setSplitByPlayer(e.target.checked)} />
               Split by player
             </label>
@@ -188,7 +200,7 @@ export default function GamesGraphPage() {
             showLegend={showLegend}
             showValues={showValues}
             title={splitByPlayer ? 'All Games Comparison (Split by Player)' : 'All Games Comparison'}
-            height={Math.max(460, Math.min(980, rows.length * 30 + 120))}
+            height={Math.max(460, rows.length * 30 + 120)}
           />
 
           <TopUsersChart

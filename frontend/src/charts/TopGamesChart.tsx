@@ -110,7 +110,17 @@ export default function TopGamesChart({
             <>
               {showLegend && <Legend wrapperStyle={{ color: '#cbd5e1' }} />}
               {splitPlayers.map((player, idx) => (
-                <Bar key={player.key} dataKey={player.key} name={player.name} stackId="players" fill={player.color} onClick={handleBarClick}>
+                <Bar
+                  key={player.key}
+                  dataKey={player.key}
+                  name={player.name}
+                  stackId="players"
+                  fill={player.color}
+                  onClick={handleBarClick}
+                  isAnimationActive
+                  animationDuration={700}
+                  animationEasing="ease-out"
+                >
                   {showValues && idx === splitPlayers.length - 1 && (
                     <LabelList
                       dataKey={player.key}
@@ -124,7 +134,15 @@ export default function TopGamesChart({
               ))}
             </>
           ) : (
-            <Bar dataKey="total_seconds" fill="#FB7185" radius={[6, 6, 6, 6]} onClick={handleBarClick}>
+            <Bar
+              dataKey="total_seconds"
+              fill="#FB7185"
+              radius={[6, 6, 6, 6]}
+              onClick={handleBarClick}
+              isAnimationActive
+              animationDuration={700}
+              animationEasing="ease-out"
+            >
               {data.map((row) => (
                 <Cell
                   key={`game-${row.id}`}

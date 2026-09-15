@@ -41,7 +41,7 @@ def overview(
 def games(
     guild_id: int = Query(default=0),
     source: Literal["combined", "automatic", "historical", "adjustments"] = "combined",
-    limit: int = Query(default=20, ge=1, le=100),
+    limit: int = Query(default=20, ge=1, le=5000),
     from_dt: datetime | None = Query(default=None, alias="from"),
     to_dt: datetime | None = Query(default=None, alias="to"),
     range_key: str | None = Query(default=None, alias="range"),
@@ -64,7 +64,7 @@ def games(
 def users(
     guild_id: int = Query(default=0),
     source: Literal["combined", "automatic", "historical", "adjustments"] = "combined",
-    limit: int = Query(default=20, ge=1, le=100),
+    limit: int = Query(default=20, ge=1, le=5000),
     from_dt: datetime | None = Query(default=None, alias="from"),
     to_dt: datetime | None = Query(default=None, alias="to"),
     range_key: str | None = Query(default=None, alias="range"),
