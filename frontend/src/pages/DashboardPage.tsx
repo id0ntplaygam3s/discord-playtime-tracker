@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import dayjs from 'dayjs';
-import { getGameUsers } from '../api/trackerApi';
+import { getGameUsers, getTopGames } from '../api/trackerApi';
 import ActivityLineChart from '../charts/ActivityLineChart';
 import TopGamesChart from '../charts/TopGamesChart';
 import TopUsersChart from '../charts/TopUsersChart';
@@ -9,7 +9,7 @@ import DateRangeTabs from '../components/DateRangeTabs';
 import StatCard from '../components/StatCard';
 import { useAppPreferences } from '../context/AppPreferencesContext';
 import { useDashboardData } from '../hooks/useDashboardData';
-import { DateRangeKey } from '../types';
+import { DateRangeKey, RankedPlaytime } from '../types';
 import { activityRangeOptions, allGamesRangeOptions, selectedGameRangeOptions } from '../utils/dateRanges';
 import { formatDuration } from '../utils/time';
 
@@ -50,6 +50,9 @@ export default function DashboardPage() {
   const [showValues, setShowValues] = useState(true);
   const [showRangeWindow, setShowRangeWindow] = useState(true);
   const [showDateAxis, setShowDateAxis] = useState(true);
+  const [activityTopGames, setActivityTopGames] = useState<RankedPlaytime[]>([]);
+  const [activityTopGamesLoading, setActivityTopGamesLoading] = useState(false);
+  const [activityTopGamesError, setActivityTopGamesError] = useState<string | null>(null);
   const [splitRows, setSplitRows] = useState<Array<Record<string, string | number>>>([]);
   const [splitPlayers, setSplitPlayers] = useState<Array<{ key: string; name: string; color: string }>>([]);
   const [splitError, setSplitError] = useState<string | null>(null);
@@ -190,6 +193,41 @@ export default function DashboardPage() {
     };
   }, [splitByPlayer, games, guildId]);
 
+  useEffect(() => {
+    let cancelled = false;
+    const loadActivityTopGames = async () => {
+      setActivityTopGamesLoading(true);
+      setActivityTopGamesError(null);
+      try {
+        const rows = await getTopGames(
+          guildId,
+          'combined',
+          10,
+          activityOverTimeRange,
+          activityOverTimeRange === 'custom'
+            ? {
+                from: activityFrom ? new Date(`${activityFrom}T00:00:00Z`).toISOString() : undefined,
+                to: activityTo ? new Date(`${activityTo}T23:59:59Z`).toISOString() : undefined,
+              }
+            : undefined,
+        );
+        if (!cancelled) setActivityTopGames(rows);
+      } catch (err: any) {
+        if (!cancelled) {
+          setActivityTopGames([]);
+          setActivityTopGamesError(err?.response?.data?.detail || 'Failed to load top games for selected timeline range');
+        }
+      } finally {
+        if (!cancelled) setActivityTopGamesLoading(false);
+      }
+    };
+
+    void loadActivityTopGames();
+    return () => {
+      cancelled = true;
+    };
+  }, [guildId, activityOverTimeRange, activityFrom, activityTo]);
+
   if (loading) return <div className="panel">Loading dashboard...</div>;
   if (error) return <div className="panel error-box">{error}</div>;
   if (!overview) return <div className="panel">No data available.</div>;
@@ -288,29 +326,33 @@ export default function DashboardPage() {
 
       {selectedGameError && <div className="error-box">{selectedGameError}</div>}
       {splitError && <div className="error-box">{splitError}</div>}
+      {activityTopGamesError && <div className="error-box">{activityTopGamesError}</div>}
 
       <section className="two-col dashboard-bottom">
-        <div className="panel">
-          <h3>Most Active Players (All Games)</h3>
-          <DateRangeTabs
-            options={allGamesRangeOptions}
-            value={allGamesActivityRange}
-            onChange={setAllGamesActivityRange}
-            ariaLabel="All games activity range"
-          />
-          {showRangeWindow && (
-            <div className="subtle" style={{ marginTop: 8 }}>
-              Window: {describeRangeWindow(allGamesActivityRange, allGamesFrom, allGamesTo)}
-            </div>
-          )}
-          {allGamesActivityRange === 'custom' && (
-            <div className="form-grid-3" style={{ marginBottom: 8 }}>
-              <input type="date" value={allGamesFrom} onChange={(e) => setAllGamesFrom(e.target.value)} />
-              <input type="date" value={allGamesTo} onChange={(e) => setAllGamesTo(e.target.value)} />
-              <div className="subtle">Custom range applies to all-players ranking.</div>
-            </div>
-          )}
-          <TopUsersChart data={users} title="" height={270} showValues={showValues} frameless />
+        <div className="split-stack">
+          <div className="panel">
+            <h3>Most Active Players (All Games)</h3>
+            <DateRangeTabs
+              options={allGamesRangeOptions}
+              value={allGamesActivityRange}
+              onChange={setAllGamesActivityRange}
+              ariaLabel="All games activity range"
+            />
+            {showRangeWindow && (
+              <div className="subtle" style={{ marginTop: 8 }}>
+                Window: {describeRangeWindow(allGamesActivityRange, allGamesFrom, allGamesTo)}
+              </div>
+            )}
+            {allGamesActivityRange === 'custom' && (
+              <div className="form-grid-3" style={{ marginBottom: 8 }}>
+                <input type="date" value={allGamesFrom} onChange={(e) => setAllGamesFrom(e.target.value)} />
+                <input type="date" value={allGamesTo} onChange={(e) => setAllGamesTo(e.target.value)} />
+                <div className="subtle">Custom range applies to all-players ranking.</div>
+              </div>
+            )}
+            <TopUsersChart data={users} title="" height={270} showValues={showValues} frameless />
+          </div>
+          <CurrentSessions sessions={active} title="Currently Playing" compact />
         </div>
         <div className="split-stack">
           <div className="panel">
@@ -341,7 +383,14 @@ export default function DashboardPage() {
             )}
             <ActivityLineChart data={daily} title="" height={120} frameless showDateAxis={showDateAxis} />
           </div>
-          <CurrentSessions sessions={active} title="Currently Playing" compact />
+          <TopGamesChart
+            data={activityTopGames}
+            selectedGameId={selectedGameId}
+            onGameSelect={setSelectedGameId}
+            title="Most Played Games In Timeline Range"
+            height={activityTopGamesLoading ? 180 : Math.max(220, activityTopGames.length * 26 + 110)}
+            showValues={showValues}
+          />
         </div>
       </section>
     </div>
