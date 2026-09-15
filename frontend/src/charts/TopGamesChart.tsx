@@ -11,6 +11,7 @@ interface TopGamesChartProps {
   height?: number;
   selectedGameId?: number;
   onGameSelect?: (gameId: number) => void;
+  onGameOpen?: (gameId: number) => void;
   splitMode?: boolean;
   splitRows?: Array<Record<string, string | number>>;
   splitPlayers?: Array<{ key: string; name: string; color: string }>;
@@ -65,6 +66,7 @@ export default function TopGamesChart({
   height = 320,
   selectedGameId,
   onGameSelect,
+  onGameOpen,
   splitMode = false,
   splitRows,
   splitPlayers,
@@ -87,13 +89,53 @@ export default function TopGamesChart({
     if (id > 0) onGameSelect(id);
   };
 
+  const handleChartRowClick = (state: any) => {
+    if (!onGameSelect) return;
+    const payload = state?.activePayload?.[0]?.payload;
+    const id = resolveGameId(payload);
+    if (id > 0) onGameSelect(id);
+  };
+
+  const renderGameTick = (props: any) => {
+    const { x, y, index } = props;
+    const row = chartRows[index] as any;
+    if (!row) return <g />;
+    const id = Number(row.id || 0);
+    const label = truncate(String(row.name || ''), 22);
+    return (
+      <g transform={`translate(${x},${y})`}>
+        <text
+          x={-6}
+          y={0}
+          dy={4}
+          textAnchor="end"
+          fill="#67e8f9"
+          style={{ cursor: onGameOpen ? 'pointer' : 'default', fontSize: '0.85rem', fontWeight: 600 }}
+          onClick={(e) => {
+            e.stopPropagation();
+            if (onGameOpen && id > 0) onGameOpen(id);
+          }}
+        >
+          {label}
+        </text>
+      </g>
+    );
+  };
+
   return (
     <div className="panel">
       <h3>{title}</h3>
       <ResponsiveContainer width="100%" height={height}>
-        <BarChart data={chartRows} layout="vertical" margin={{ top: 8, right: 24, left: 16, bottom: 8 }}>
+        <BarChart data={chartRows} layout="vertical" margin={{ top: 8, right: 24, left: 16, bottom: 8 }} onClick={handleChartRowClick}>
           <XAxis type="number" hide />
-          <YAxis type="category" dataKey="name" width={yAxisWidth} stroke="#A5B4FC" tickFormatter={(v) => truncate(String(v))} />
+          <YAxis
+            type="category"
+            dataKey="name"
+            width={yAxisWidth}
+            stroke="#A5B4FC"
+            tick={splitMode ? true : (renderGameTick as any)}
+            tickFormatter={(v) => truncate(String(v))}
+          />
           <Tooltip
             formatter={(value: number, key: string) => {
               if (splitMode) {

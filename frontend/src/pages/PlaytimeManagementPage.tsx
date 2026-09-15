@@ -396,8 +396,14 @@ export default function PlaytimeManagementPage() {
           Use this for missing past time or imports that never came from live Discord sessions.
         </p>
         <div className="form-grid-3">
-          <input type="number" min={0} value={hours} onChange={(e) => setHours(Number(e.target.value))} placeholder="Hours" />
-          <input type="number" min={0} max={59} value={minutes} onChange={(e) => setMinutes(Number(e.target.value))} placeholder="Minutes" />
+          <div style={{ display: 'grid', gap: 4 }}>
+            <label htmlFor="manual-hours" className="subtle">Hours</label>
+            <input id="manual-hours" type="number" min={0} value={hours} onChange={(e) => setHours(Number(e.target.value))} placeholder="0" />
+          </div>
+          <div style={{ display: 'grid', gap: 4 }}>
+            <label htmlFor="manual-minutes" className="subtle">Minutes</label>
+            <input id="manual-minutes" type="number" min={0} max={59} value={minutes} onChange={(e) => setMinutes(Number(e.target.value))} placeholder="0" />
+          </div>
           <select value={source} onChange={(e) => setSource(e.target.value as any)}>
             <option value="historical">Historical</option>
             <option value="imported">Imported</option>
@@ -421,8 +427,14 @@ export default function PlaytimeManagementPage() {
               <option value={1}>+</option>
               <option value={-1}>-</option>
             </select>
-            <input type="number" min={0} value={adjHours} onChange={(e) => setAdjHours(Number(e.target.value))} placeholder="Hours" />
-            <input type="number" min={0} max={59} value={adjMinutes} onChange={(e) => setAdjMinutes(Number(e.target.value))} placeholder="Minutes" />
+            <div style={{ display: 'grid', gap: 4 }}>
+              <label htmlFor="adjust-hours" className="subtle">Hours</label>
+              <input id="adjust-hours" type="number" min={0} value={adjHours} onChange={(e) => setAdjHours(Number(e.target.value))} placeholder="0" />
+            </div>
+            <div style={{ display: 'grid', gap: 4 }}>
+              <label htmlFor="adjust-minutes" className="subtle">Minutes</label>
+              <input id="adjust-minutes" type="number" min={0} max={59} value={adjMinutes} onChange={(e) => setAdjMinutes(Number(e.target.value))} placeholder="0" />
+            </div>
             <input value={adjReason} onChange={(e) => setAdjReason(e.target.value)} placeholder="Reason" />
           </div>
           <button type="submit" disabled={!userId || (!useCustomGame && !canUseSavedGame) || (useCustomGame && !customGameTitle.trim())}>Save Adjustment</button>
@@ -436,8 +448,14 @@ export default function PlaytimeManagementPage() {
             Sets final total by calculating a hidden adjustment delta; this does not rewrite existing session history.
           </p>
           <div className="form-grid-3">
-            <input type="number" min={0} value={targetHours} onChange={(e) => setTargetHours(Number(e.target.value))} placeholder="Target hours" />
-            <input type="number" min={0} max={59} value={targetMinutes} onChange={(e) => setTargetMinutes(Number(e.target.value))} placeholder="Target minutes" />
+            <div style={{ display: 'grid', gap: 4 }}>
+              <label htmlFor="target-hours" className="subtle">Target Hours</label>
+              <input id="target-hours" type="number" min={0} value={targetHours} onChange={(e) => setTargetHours(Number(e.target.value))} placeholder="0" />
+            </div>
+            <div style={{ display: 'grid', gap: 4 }}>
+              <label htmlFor="target-minutes" className="subtle">Target Minutes</label>
+              <input id="target-minutes" type="number" min={0} max={59} value={targetMinutes} onChange={(e) => setTargetMinutes(Number(e.target.value))} placeholder="0" />
+            </div>
             <input value={targetReason} onChange={(e) => setTargetReason(e.target.value)} placeholder="Reason" />
           </div>
           <button type="submit" disabled={!userId || (!useCustomGame && !canUseSavedGame) || (useCustomGame && !customGameTitle.trim())}>Apply Absolute Total</button>

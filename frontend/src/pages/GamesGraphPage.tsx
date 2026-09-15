@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import TopGamesChart from '../charts/TopGamesChart';
 import TopUsersChart from '../charts/TopUsersChart';
 import { getGameUsers, getTopGames } from '../api/trackerApi';
@@ -7,6 +7,7 @@ import { RankedPlaytime } from '../types';
 import { formatDuration } from '../utils/time';
 
 export default function GamesGraphPage() {
+  const navigate = useNavigate();
   const guildId = Number(import.meta.env.VITE_GUILD_ID || 0);
   const ALL_ROWS_LIMIT = 5000;
   const [rowLimit, setRowLimit] = useState<number>(50);
@@ -195,6 +196,7 @@ export default function GamesGraphPage() {
             data={rows}
             selectedGameId={selectedGameId}
             onGameSelect={setSelectedGameId}
+            onGameOpen={(id) => navigate(`/games/${id}`)}
             splitMode={splitByPlayer}
             splitRows={splitRows}
             splitPlayers={splitPlayers}
@@ -204,40 +206,9 @@ export default function GamesGraphPage() {
             height={Math.max(460, rows.length * 30 + 120)}
           />
 
-          <div className="panel">
-            <h3>Game Totals</h3>
-            <div className="subtle" style={{ marginBottom: 10 }}>
-              Click any row to update "Most Active In". Click a game name to open its profile page.
-            </div>
-            <div className="table-wrap">
-              <table className="data-table">
-                <thead>
-                  <tr>
-                    <th>Game</th>
-                    <th>Total Playtime</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {rows.map((row) => (
-                    <tr
-                      key={`graph-row-${row.id}`}
-                      onClick={() => setSelectedGameId(row.id)}
-                      style={{ background: selectedGameId === row.id ? 'rgba(34, 211, 238, 0.12)' : 'transparent', cursor: 'pointer' }}
-                    >
-                      <td>
-                        <Link to={`/games/${row.id}`}>{row.name}</Link>
-                      </td>
-                      <td>{formatDuration(row.total_seconds)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-
           <TopUsersChart
             data={selectedUsers}
-            title={selectedGame ? `Most Active In ${selectedGame.name}` : 'Select a game bar for player breakdown'}
+            title={selectedGame ? `Most Active In ${selectedGame.name}` : 'Select a game row or bar for player breakdown'}
             height={360}
             showValues={showValues}
             rowColorsByName={selectedGameColors}
