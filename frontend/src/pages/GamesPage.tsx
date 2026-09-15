@@ -10,7 +10,7 @@ import { formatDuration } from '../utils/time';
 export default function GamesPage() {
   const guildId = Number(import.meta.env.VITE_GUILD_ID || 0);
   const ALL_ROWS_LIMIT = 5000;
-  const [rowLimit, setRowLimit] = useState<number>(30);
+  const [rowLimit, setRowLimit] = useState<number>(50);
   const [rows, setRows] = useState<any[]>([]);
   const [selectedGameId, setSelectedGameId] = useState<number>(0);
   const [selectedUsers, setSelectedUsers] = useState<any[]>([]);

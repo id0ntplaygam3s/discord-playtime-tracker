@@ -88,7 +88,7 @@ export default function AppLayout({
         <div className="sidebar-actions">
           {!isAdmin && (
             <button type="button" className="sidebar-btn" onClick={onSwitchToAdmin}>
-              Switch to Admin
+              Return to Login
             </button>
           )}
           <button type="button" className="sidebar-btn" onClick={onSignOut}>

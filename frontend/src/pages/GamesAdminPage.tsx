@@ -5,6 +5,7 @@ import {
   ignoreMergeSuggestion,
   mergeGames,
   renameGame,
+  setGameVisibility,
   unmergeGame,
 } from '../api/adminApi';
 import { AdminGameCatalogRow, MergeSuggestionRow } from '../types';
@@ -160,6 +161,23 @@ export default function GamesAdminPage() {
     }
   };
 
+  const toggleVisibility = async (row: AdminGameCatalogRow) => {
+    setMessage(null);
+    setError(null);
+    try {
+      await setGameVisibility(
+        guildId,
+        row.id,
+        !row.is_hidden,
+        row.is_hidden ? 'Unhidden from Games Admin catalog' : 'Hidden from Games Admin catalog'
+      );
+      setMessage(row.is_hidden ? `Game unhidden: ${row.display_name}` : `Game hidden: ${row.display_name}`);
+      await loadAll();
+    } catch (err: any) {
+      setError(err?.response?.data?.detail || 'Failed to update game visibility');
+    }
+  };
+
   return (
     <div className="page-grid">
       <div className="panel">
@@ -294,6 +312,7 @@ export default function GamesAdminPage() {
                 <th>Status</th>
                 <th>Canonical Target</th>
                 <th>Has Data</th>
+                <th>Action</th>
               </tr>
             </thead>
             <tbody>
@@ -304,6 +323,15 @@ export default function GamesAdminPage() {
                   <td>{g.is_hidden ? 'hidden/merged' : 'visible'}</td>
                   <td>{g.canonical_game_id ? `#${g.canonical_game_id} ${g.canonical_game_name || ''}` : '-'}</td>
                   <td>{g.has_guild_data ? 'yes' : 'no'}</td>
+                  <td>
+                    {g.canonical_game_id ? (
+                      <span className="subtle">Use unmerge</span>
+                    ) : (
+                      <button type="button" onClick={() => void toggleVisibility(g)}>
+                        {g.is_hidden ? 'Unhide' : 'Hide'}
+                      </button>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>

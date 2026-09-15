@@ -81,7 +81,7 @@ export default function PlaytimeManagementPage() {
         const gamesResult = await listGames(guildId);
         const nextGames = normalizeRows(gamesResult);
         setGames(nextGames);
-        setGameId((current) => (nextGames.some((g) => g.id === current) ? current : nextGames[0]?.id || 0));
+        setGameId((current) => (current > 0 ? current : nextGames[0]?.id || 0));
       } catch (err: any) {
         setGames([]);
         setError(err?.response?.data?.detail || 'Failed to load games');
@@ -108,7 +108,7 @@ export default function PlaytimeManagementPage() {
     if (gamesResult.status === 'fulfilled') {
       const nextGames = normalizeRows(gamesResult.value);
       setGames(nextGames);
-      setGameId((current) => (nextGames.some((g) => g.id === current) ? current : nextGames[0]?.id || 0));
+      setGameId((current) => (current > 0 ? current : nextGames[0]?.id || 0));
     } else {
       setGames([]);
       setError(gamesResult.reason?.response?.data?.detail || 'Failed to load games');
@@ -164,6 +164,9 @@ export default function PlaytimeManagementPage() {
   const selectedGame = useMemo(() => games.find((g) => g.id === Number(gameId)), [games, gameId]);
   const gameLabel = useCustomGame ? customGameTitle.trim() : selectedGame?.display_name;
   const canUseSavedGame = gameId > 0;
+  const hasUnsavedCustomTarget = useCustomGame
+    && customGameTitle.trim().length > 0
+    && (selectedGame?.display_name || '').trim().toLowerCase() !== customGameTitle.trim().toLowerCase();
 
   const handleManual = async (e: FormEvent) => {
     e.preventDefault();
@@ -213,6 +216,10 @@ export default function PlaytimeManagementPage() {
     e.preventDefault();
     setError(null);
     setMessage(null);
+    if (hasUnsavedCustomTarget) {
+      setError('Save manual playtime once to create/select the custom title before adding adjustments.');
+      return;
+    }
     if (!userId || !gameId) {
       setError('Select a user and game before saving an adjustment');
       return;
@@ -238,6 +245,10 @@ export default function PlaytimeManagementPage() {
     e.preventDefault();
     setError(null);
     setMessage(null);
+    if (hasUnsavedCustomTarget) {
+      setError('Save manual playtime once to create/select the custom title before setting an absolute total.');
+      return;
+    }
     if (!userId || !gameId) {
       setError('Select a user and game before applying an absolute total');
       return;
@@ -381,7 +392,7 @@ export default function PlaytimeManagementPage() {
             <input type="number" min={0} max={59} value={adjMinutes} onChange={(e) => setAdjMinutes(Number(e.target.value))} placeholder="Minutes" />
             <input value={adjReason} onChange={(e) => setAdjReason(e.target.value)} placeholder="Reason" />
           </div>
-          <button type="submit" disabled={!userId || !canUseSavedGame}>Save Adjustment</button>
+          <button type="submit" disabled={!userId || !canUseSavedGame || hasUnsavedCustomTarget}>Save Adjustment</button>
         </form>
       )}
 
@@ -396,7 +407,7 @@ export default function PlaytimeManagementPage() {
             <input type="number" min={0} max={59} value={targetMinutes} onChange={(e) => setTargetMinutes(Number(e.target.value))} placeholder="Target minutes" />
             <input value={targetReason} onChange={(e) => setTargetReason(e.target.value)} placeholder="Reason" />
           </div>
-          <button type="submit" disabled={!userId || !canUseSavedGame}>Apply Absolute Total</button>
+          <button type="submit" disabled={!userId || !canUseSavedGame || hasUnsavedCustomTarget}>Apply Absolute Total</button>
         </form>
       )}
 
@@ -405,9 +416,14 @@ export default function PlaytimeManagementPage() {
         <div className="subtle" style={{ marginBottom: 8 }}>
           Showing latest manual entries and adjustments for the selected user/game.
         </div>
-        {loadingEntries && <div className="subtle">Loading entries...</div>}
-        {!loadingEntries && entries.length === 0 && <div className="empty">No entries found for this selection.</div>}
-        {!loadingEntries && entries.length > 0 && (
+        {hasUnsavedCustomTarget && (
+          <div className="subtle" style={{ marginBottom: 8 }}>
+            Custom title mode is active. Save one manual entry first, then this table will follow that custom game.
+          </div>
+        )}
+        {!hasUnsavedCustomTarget && loadingEntries && <div className="subtle">Loading entries...</div>}
+        {!hasUnsavedCustomTarget && !loadingEntries && entries.length === 0 && <div className="empty">No entries found for this selection.</div>}
+        {!hasUnsavedCustomTarget && !loadingEntries && entries.length > 0 && (
           <div className="table-wrap">
             <table className="data-table">
               <thead>

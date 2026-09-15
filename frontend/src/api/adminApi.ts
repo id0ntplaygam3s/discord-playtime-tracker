@@ -261,6 +261,11 @@ export async function unmergeGame(guildId: number, gameId: number, reason: strin
   return data;
 }
 
+export async function setGameVisibility(guildId: number, gameId: number, hidden: boolean, reason: string) {
+  const { data } = await client.post(`/games/${gameId}/visibility`, { guild_id: guildId, hidden, reason });
+  return data;
+}
+
 export async function getMergeSuggestions(limit = 100, confidence?: 'high' | 'medium' | 'low') {
   const { data } = await client.get('/games/meta/merge-suggestions', { params: { limit, confidence: confidence || undefined } });
   return data;

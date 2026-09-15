@@ -136,7 +136,10 @@ def game_users(
     has_guild_data = _game_has_guild_data(db, guild_id, game_id)
     if not has_guild_data:
         raise HTTPException(status_code=404, detail="Game not found")
-    resolved_game = resolve_canonical_game(db, db.query(Game).filter(Game.id == game_id).first())
+    game = db.query(Game).filter(Game.id == game_id).first()
+    if game is None:
+        raise HTTPException(status_code=404, detail="Game not found")
+    resolved_game = resolve_canonical_game(db, game)
     try:
         resolved = resolve_range(range_key, timezone_name=get_settings().timezone, custom_from=from_dt, custom_to=to_dt)
     except ValueError as exc:
@@ -377,6 +380,42 @@ def unmerge_game(
         metadata_json={"previous_target_game_id": previous_target},
     )
     return {"ok": True, "game_id": game.id}
+
+
+@router.post("/{game_id}/visibility")
+def set_game_visibility(
+    game_id: int,
+    payload: dict,
+    admin=Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    guild_id = resolve_guild_id(db, int(payload.get("guild_id") or 0))
+    hidden = bool(payload.get("hidden", False))
+    reason = (payload.get("reason") or "Visibility updated by admin").strip()
+
+    game = db.query(Game).filter(Game.id == game_id).first()
+    if game is None:
+        raise HTTPException(status_code=404, detail="Game not found")
+    if not _game_has_guild_data(db, guild_id, game_id):
+        raise HTTPException(status_code=404, detail="Game not found")
+    if not hidden and game.canonical_game_id is not None:
+        raise HTTPException(status_code=409, detail="Merged games cannot be set visible directly; unmerge first")
+
+    game.is_hidden = hidden
+    db.commit()
+
+    write_audit_log(
+        db,
+        guild_id=guild_id,
+        action=AuditAction.game_canonical_changed,
+        **audit_actor_fields(admin),
+        target_user_id=None,
+        target_game_id=game.id,
+        change_seconds=None,
+        reason=reason,
+        metadata_json={"is_hidden": bool(game.is_hidden)},
+    )
+    return {"ok": True, "game_id": game.id, "is_hidden": bool(game.is_hidden)}
 
 
 @router.get("/meta/merge-suggestions")

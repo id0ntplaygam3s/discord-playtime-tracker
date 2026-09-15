@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import dayjs from 'dayjs';
 import { getGameUsers } from '../api/trackerApi';
 import ActivityLineChart from '../charts/ActivityLineChart';
 import TopGamesChart from '../charts/TopGamesChart';
@@ -11,6 +12,22 @@ import { useDashboardData } from '../hooks/useDashboardData';
 import { DateRangeKey } from '../types';
 import { activityRangeOptions, allGamesRangeOptions, selectedGameRangeOptions } from '../utils/dateRanges';
 import { formatDuration } from '../utils/time';
+
+function describeRangeWindow(range: DateRangeKey, from?: string, to?: string): string {
+  const today = dayjs().endOf('day');
+  if (range === 'all') return 'All time';
+  if (range === 'ytd') return `${dayjs().startOf('year').format('DD MMM YYYY')} -> ${today.format('DD MMM YYYY')}`;
+  if (range === 'custom') {
+    if (from && to) return `${dayjs(from).format('DD MMM YYYY')} -> ${dayjs(to).format('DD MMM YYYY')}`;
+    if (from) return `${dayjs(from).format('DD MMM YYYY')} -> now`;
+    if (to) return `up to ${dayjs(to).format('DD MMM YYYY')}`;
+    return 'Custom range';
+  }
+  const days = Number(range.replace('d', ''));
+  if (Number.isNaN(days) || days <= 0) return 'Range selected';
+  const start = today.subtract(days - 1, 'day').startOf('day');
+  return `${start.format('DD MMM YYYY')} -> ${today.format('DD MMM YYYY')}`;
+}
 
 export default function DashboardPage() {
   const guildId = Number(import.meta.env.VITE_GUILD_ID || 0);
@@ -31,6 +48,8 @@ export default function DashboardPage() {
   const [splitByPlayer, setSplitByPlayer] = useState(false);
   const [showLegend, setShowLegend] = useState(true);
   const [showValues, setShowValues] = useState(true);
+  const [showRangeWindow, setShowRangeWindow] = useState(true);
+  const [showDateAxis, setShowDateAxis] = useState(true);
   const [splitRows, setSplitRows] = useState<Array<Record<string, string | number>>>([]);
   const [splitPlayers, setSplitPlayers] = useState<Array<{ key: string; name: string; color: string }>>([]);
   const [splitError, setSplitError] = useState<string | null>(null);
@@ -195,6 +214,10 @@ export default function DashboardPage() {
             <input type="checkbox" checked={showValues} onChange={(e) => setShowValues(e.target.checked)} />
             Values
           </label>
+          <label style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+            <input type="checkbox" checked={showRangeWindow} onChange={(e) => setShowRangeWindow(e.target.checked)} />
+            Show range dates
+          </label>
         </div>
       </header>
 
@@ -224,13 +247,26 @@ export default function DashboardPage() {
           title={splitByPlayer ? 'Most Played Games (Split by Player)' : 'Most Played Games'}
         />
         <div className="panel">
-          <h3>{selectedGame ? `Most Active In ${selectedGame.name}` : 'Select a game to view player split'}</h3>
+          <div className="panel-head-inline">
+            <h3>{selectedGame ? `Most Active In ${selectedGame.name}` : 'Select a game to view player split'}</h3>
+            {selectedGameLoading && (
+              <div className="inline-loader" aria-live="polite">
+                <span className="spinner" />
+                <span>Loading</span>
+              </div>
+            )}
+          </div>
           <DateRangeTabs
             options={selectedGameRangeOptions}
             value={selectedGameActivityRange}
             onChange={setSelectedGameActivityRange}
             ariaLabel="Selected game activity range"
           />
+          {showRangeWindow && (
+            <div className="subtle" style={{ marginTop: 8 }}>
+              Window: {describeRangeWindow(selectedGameActivityRange, selectedFrom, selectedTo)}
+            </div>
+          )}
           {selectedGameActivityRange === 'custom' && (
             <div className="form-grid-3" style={{ marginTop: 8 }}>
               <input type="date" value={selectedFrom} onChange={(e) => setSelectedFrom(e.target.value)} />
@@ -250,7 +286,6 @@ export default function DashboardPage() {
         </div>
       </section>
 
-      {selectedGameLoading && <div className="panel">Loading selected game breakdown...</div>}
       {selectedGameError && <div className="error-box">{selectedGameError}</div>}
       {splitError && <div className="error-box">{splitError}</div>}
 
@@ -263,6 +298,11 @@ export default function DashboardPage() {
             onChange={setAllGamesActivityRange}
             ariaLabel="All games activity range"
           />
+          {showRangeWindow && (
+            <div className="subtle" style={{ marginTop: 8 }}>
+              Window: {describeRangeWindow(allGamesActivityRange, allGamesFrom, allGamesTo)}
+            </div>
+          )}
           {allGamesActivityRange === 'custom' && (
             <div className="form-grid-3" style={{ marginBottom: 8 }}>
               <input type="date" value={allGamesFrom} onChange={(e) => setAllGamesFrom(e.target.value)} />
@@ -281,6 +321,17 @@ export default function DashboardPage() {
               onChange={setActivityOverTimeRange}
               ariaLabel="Activity over time range"
             />
+            <div className="filters" style={{ marginTop: 8, marginBottom: 8 }}>
+              <label style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                <input type="checkbox" checked={showDateAxis} onChange={(e) => setShowDateAxis(e.target.checked)} />
+                Show date axis
+              </label>
+            </div>
+            {showRangeWindow && (
+              <div className="subtle" style={{ marginBottom: 8 }}>
+                Window: {describeRangeWindow(activityOverTimeRange, activityFrom, activityTo)}
+              </div>
+            )}
             {activityOverTimeRange === 'custom' && (
               <div className="form-grid-3" style={{ marginBottom: 8 }}>
                 <input type="date" value={activityFrom} onChange={(e) => setActivityFrom(e.target.value)} />
@@ -288,7 +339,7 @@ export default function DashboardPage() {
                 <div className="subtle">Custom range applies to the timeline chart.</div>
               </div>
             )}
-            <ActivityLineChart data={daily} title="" height={120} frameless />
+            <ActivityLineChart data={daily} title="" height={120} frameless showDateAxis={showDateAxis} />
           </div>
           <CurrentSessions sessions={active} title="Currently Playing" compact />
         </div>

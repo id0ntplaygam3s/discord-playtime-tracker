@@ -318,8 +318,8 @@ Most Played Games still defaults selected game to the first ranked game.
 Most Active in Selected Game and Most Active Players (All Games) use independent date-range tabs.
 
 Games and Games Graph pages now include a rows dropdown:
-- Default 30 rows
-- 50, 100, 250 options
+- Default 50 rows
+- 30, 50, 100, 250 options
 - All option for full overview
 
 ## Upgrade Notes
@@ -371,6 +371,7 @@ The `Games Admin` page is available to users with `permissions.manage` and provi
 - Rename game titles
 - Merge duplicate games into a canonical target
 - Unmerge previously merged game identities
+- Hide or unhide games from rankings/charts (for noise titles such as Spacewar)
 - Review merge suggestions and ignore/accept them
 
 Merge behavior:
@@ -379,11 +380,16 @@ Merge behavior:
 - Historical rows retain source provenance
 - Aggregations resolve via canonical identity to avoid double counting
 
+Visibility behavior:
+- Hidden games are excluded from normal rankings/charts and list endpoints that only show visible games.
+- Merged games stay hidden until unmerged; use `Unmerge` instead of `Unhide` for merged identities.
+
 Related API endpoints:
 - `GET /api/games/meta/catalog`
 - `POST /api/games/{game_id}/rename`
 - `POST /api/games/merge`
 - `POST /api/games/{game_id}/unmerge`
+- `POST /api/games/{game_id}/visibility`
 - `GET /api/games/meta/merge-suggestions`
 - `POST /api/games/meta/merge-suggestions/{source_game_id}/{target_game_id}/ignore`
 
