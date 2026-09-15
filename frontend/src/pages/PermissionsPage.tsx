@@ -1,5 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
-import { getPermissions, getUserPermissionOverrides, listAdminUsers, setUserPermissionOverride, updateRolePermissions } from '../api/adminApi';
+import {
+  getPermissions,
+  getUserPermissionOverrides,
+  listPermissionOverrideAccounts,
+  resetPermissionsToDefaults,
+  setUserPermissionOverride,
+  updateRolePermissions,
+} from '../api/adminApi';
 
 export default function PermissionsPage() {
   const guildId = Number(import.meta.env.VITE_GUILD_ID || 0);
@@ -15,12 +22,13 @@ export default function PermissionsPage() {
   const load = async () => {
     setError(null);
     try {
-      const [permissionsData, userRows] = await Promise.all([getPermissions(), listAdminUsers(guildId)]);
+      const [permissionsData, accountRows] = await Promise.all([getPermissions(), listPermissionOverrideAccounts(guildId)]);
       setPermissions(permissionsData.permissions || []);
       setRoles(permissionsData.roles || []);
       setRoleMatrix(permissionsData.role_permissions || {});
-      setAccounts((userRows || []).filter((row: any) => row.account_id));
-      setSelectedAccountId((current) => (userRows.some((row: any) => row.account_id === current) ? current : userRows.find((r: any) => r.account_id)?.account_id || 0));
+      const usableAccounts = (accountRows || []).filter((row: any) => row.account_id);
+      setAccounts(usableAccounts);
+      setSelectedAccountId((current) => (usableAccounts.some((row: any) => row.account_id === current) ? current : usableAccounts[0]?.account_id || 0));
     } catch (err: any) {
       setError(err?.response?.data?.detail || 'Failed to load permissions');
     }
@@ -75,6 +83,19 @@ export default function PermissionsPage() {
     }
   };
 
+  const handleResetDefaults = async () => {
+    setError(null);
+    setMessage(null);
+    try {
+      const result = await resetPermissionsToDefaults();
+      setMessage(`Permissions reset to defaults. Cleared ${result?.cleared_user_overrides || 0} user overrides.`);
+      setOverrides({});
+      await load();
+    } catch (err: any) {
+      setError(err?.response?.data?.detail || 'Failed to reset permissions');
+    }
+  };
+
   return (
     <div className="page-grid">
       <div className="panel">
@@ -85,7 +106,12 @@ export default function PermissionsPage() {
       {message && <div className="success-box">{message}</div>}
 
       <div className="panel">
-        <h3>Role Permission Matrix</h3>
+        <div className="panel-head-inline">
+          <h3>Role Permission Matrix</h3>
+          <button type="button" onClick={() => void handleResetDefaults()}>
+            Reset Permissions To Default
+          </button>
+        </div>
         <div className="table-wrap">
           <table className="data-table">
             <thead>

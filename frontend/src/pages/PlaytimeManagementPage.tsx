@@ -2,6 +2,7 @@ import { FormEvent, useEffect, useMemo, useState } from 'react';
 import {
   addAdjustment,
   addManualPlaytime,
+  addOwnAdjustment,
   addOwnManualPlaytime,
   deleteManualPlaytime,
   deleteOwnManualPlaytime,
@@ -10,6 +11,7 @@ import {
   listManualPlaytime,
   listOwnManualPlaytime,
   listUsers,
+  setOwnTotal,
   setTotal,
 } from '../api/adminApi';
 import { formatDuration, formatSignedDuration } from '../utils/time';
@@ -247,9 +249,9 @@ export default function PlaytimeManagementPage() {
       return;
     }
     try {
-      const result = await addAdjustment({
+      const payload = {
         guild_id: guildId,
-        user_id: Number(userId),
+        user_id: canManageAll ? Number(userId) : Number(currentTrackedUserId || userId),
         game_id: useCustomGame ? undefined : Number(gameId),
         use_custom_game_title: useCustomGame,
         custom_game_title: useCustomGame ? customTitle : undefined,
@@ -257,14 +259,15 @@ export default function PlaytimeManagementPage() {
         minutes: Number(adjMinutes),
         sign: Number(adjSign),
         reason: adjReason,
-      });
+      };
+      const result = canManageAll ? await addAdjustment(payload) : await addOwnAdjustment(payload);
       if (result?.game_id) {
         upsertGameOption(Number(result.game_id), result?.game_display_name);
         setGameId(Number(result.game_id));
       }
       setMessage('Adjustment saved.');
       await refreshOptions();
-      await refreshEntries(Number(userId), result?.game_id ? Number(result.game_id) : undefined, canManageAll);
+      await refreshEntries(payload.user_id, result?.game_id ? Number(result.game_id) : undefined, canManageAll);
     } catch (err: any) {
       setError(err?.response?.data?.detail || 'Failed to save adjustment');
     }
@@ -281,22 +284,23 @@ export default function PlaytimeManagementPage() {
     }
     try {
       const desiredTotalSeconds = Number(targetHours) * 3600 + Number(targetMinutes) * 60;
-      const result = await setTotal({
+      const payload = {
         guild_id: guildId,
-        user_id: Number(userId),
+        user_id: canManageAll ? Number(userId) : Number(currentTrackedUserId || userId),
         game_id: useCustomGame ? undefined : Number(gameId),
         use_custom_game_title: useCustomGame,
         custom_game_title: useCustomGame ? customTitle : undefined,
         desired_total_seconds: desiredTotalSeconds,
         reason: targetReason,
-      });
+      };
+      const result = canManageAll ? await setTotal(payload) : await setOwnTotal(payload);
       if (result?.game_id) {
         upsertGameOption(Number(result.game_id), result?.game_display_name);
         setGameId(Number(result.game_id));
       }
       setMessage('Absolute total correction applied via adjustment.');
       await refreshOptions();
-      await refreshEntries(Number(userId), result?.game_id ? Number(result.game_id) : undefined, canManageAll);
+      await refreshEntries(payload.user_id, result?.game_id ? Number(result.game_id) : undefined, canManageAll);
     } catch (err: any) {
       setError(err?.response?.data?.detail || 'Failed to set absolute total');
     }
@@ -416,51 +420,47 @@ export default function PlaytimeManagementPage() {
         </button>
       </form>
 
-      {canManageAll && (
-        <form className="panel" onSubmit={handleAdjustment}>
-          <h3>Add Adjustment</h3>
-          <p className="subtle" style={{ marginTop: -8 }}>
-            Use adjustments for quick corrections only. Positive adds time, negative subtracts time.
-          </p>
-          <div className="form-grid-4">
-            <select value={adjSign} onChange={(e) => setAdjSign(Number(e.target.value))}>
-              <option value={1}>+</option>
-              <option value={-1}>-</option>
-            </select>
-            <div style={{ display: 'grid', gap: 4 }}>
-              <label htmlFor="adjust-hours" className="subtle">Hours</label>
-              <input id="adjust-hours" type="number" min={0} value={adjHours} onChange={(e) => setAdjHours(Number(e.target.value))} placeholder="0" />
-            </div>
-            <div style={{ display: 'grid', gap: 4 }}>
-              <label htmlFor="adjust-minutes" className="subtle">Minutes</label>
-              <input id="adjust-minutes" type="number" min={0} max={59} value={adjMinutes} onChange={(e) => setAdjMinutes(Number(e.target.value))} placeholder="0" />
-            </div>
-            <input value={adjReason} onChange={(e) => setAdjReason(e.target.value)} placeholder="Reason" />
+      <form className="panel" onSubmit={handleAdjustment}>
+        <h3>Add Adjustment</h3>
+        <p className="subtle" style={{ marginTop: -8 }}>
+          Use adjustments for quick corrections only. Positive adds time, negative subtracts time.
+        </p>
+        <div className="form-grid-4">
+          <select value={adjSign} onChange={(e) => setAdjSign(Number(e.target.value))}>
+            <option value={1}>+</option>
+            <option value={-1}>-</option>
+          </select>
+          <div style={{ display: 'grid', gap: 4 }}>
+            <label htmlFor="adjust-hours" className="subtle">Hours</label>
+            <input id="adjust-hours" type="number" min={0} value={adjHours} onChange={(e) => setAdjHours(Number(e.target.value))} placeholder="0" />
           </div>
-          <button type="submit" disabled={!userId || (!useCustomGame && !canUseSavedGame) || (useCustomGame && !customGameTitle.trim())}>Save Adjustment</button>
-        </form>
-      )}
+          <div style={{ display: 'grid', gap: 4 }}>
+            <label htmlFor="adjust-minutes" className="subtle">Minutes</label>
+            <input id="adjust-minutes" type="number" min={0} max={59} value={adjMinutes} onChange={(e) => setAdjMinutes(Number(e.target.value))} placeholder="0" />
+          </div>
+          <input value={adjReason} onChange={(e) => setAdjReason(e.target.value)} placeholder="Reason" />
+        </div>
+        <button type="submit" disabled={!userId || (!useCustomGame && !canUseSavedGame) || (useCustomGame && !customGameTitle.trim())}>Save Adjustment</button>
+      </form>
 
-      {canManageAll && (
-        <form className="panel" onSubmit={handleSetTotal}>
-          <h3>Set Absolute Total</h3>
-          <p className="subtle" style={{ marginTop: -8 }}>
-            Sets final total by calculating a hidden adjustment delta; this does not rewrite existing session history.
-          </p>
-          <div className="form-grid-3">
-            <div style={{ display: 'grid', gap: 4 }}>
-              <label htmlFor="target-hours" className="subtle">Target Hours</label>
-              <input id="target-hours" type="number" min={0} value={targetHours} onChange={(e) => setTargetHours(Number(e.target.value))} placeholder="0" />
-            </div>
-            <div style={{ display: 'grid', gap: 4 }}>
-              <label htmlFor="target-minutes" className="subtle">Target Minutes</label>
-              <input id="target-minutes" type="number" min={0} max={59} value={targetMinutes} onChange={(e) => setTargetMinutes(Number(e.target.value))} placeholder="0" />
-            </div>
-            <input value={targetReason} onChange={(e) => setTargetReason(e.target.value)} placeholder="Reason" />
+      <form className="panel" onSubmit={handleSetTotal}>
+        <h3>Set Absolute Total</h3>
+        <p className="subtle" style={{ marginTop: -8 }}>
+          Sets final total by calculating a hidden adjustment delta; this does not rewrite existing session history.
+        </p>
+        <div className="form-grid-3">
+          <div style={{ display: 'grid', gap: 4 }}>
+            <label htmlFor="target-hours" className="subtle">Target Hours</label>
+            <input id="target-hours" type="number" min={0} value={targetHours} onChange={(e) => setTargetHours(Number(e.target.value))} placeholder="0" />
           </div>
-          <button type="submit" disabled={!userId || (!useCustomGame && !canUseSavedGame) || (useCustomGame && !customGameTitle.trim())}>Apply Absolute Total</button>
-        </form>
-      )}
+          <div style={{ display: 'grid', gap: 4 }}>
+            <label htmlFor="target-minutes" className="subtle">Target Minutes</label>
+            <input id="target-minutes" type="number" min={0} max={59} value={targetMinutes} onChange={(e) => setTargetMinutes(Number(e.target.value))} placeholder="0" />
+          </div>
+          <input value={targetReason} onChange={(e) => setTargetReason(e.target.value)} placeholder="Reason" />
+        </div>
+        <button type="submit" disabled={!userId || (!useCustomGame && !canUseSavedGame) || (useCustomGame && !customGameTitle.trim())}>Apply Absolute Total</button>
+      </form>
 
       <div className="panel">
         <h3>Recent Entries</h3>

@@ -147,17 +147,32 @@ def list_own_manual_playtime(
         target_user_id = db.query(User.id).filter(User.guild_id == guild_id).order_by(User.id.asc()).scalar()
     if target_user_id is None:
         return []
-    query = db.query(ManualPlaytime, Game).join(Game, Game.id == ManualPlaytime.game_id).filter(
+    manual_query = db.query(ManualPlaytime, Game).join(Game, Game.id == ManualPlaytime.game_id).filter(
         ManualPlaytime.guild_id == guild_id,
         ManualPlaytime.user_id == target_user_id,
         ManualPlaytime.deleted_at.is_(None),
     )
     if game_id:
-        query = query.filter(or_(ManualPlaytime.game_id == game_id, Game.canonical_game_id == game_id))
-    rows = query.order_by(ManualPlaytime.created_at.desc()).limit(limit).all()
-    return [
+        manual_query = manual_query.filter(or_(ManualPlaytime.game_id == game_id, Game.canonical_game_id == game_id))
+    manual_rows = manual_query.order_by(ManualPlaytime.created_at.desc()).limit(limit).all()
+
+    adjustments_q = (
+        db.query(PlaytimeAdjustment, Game)
+        .join(Game, Game.id == PlaytimeAdjustment.game_id)
+        .filter(
+            PlaytimeAdjustment.guild_id == guild_id,
+            PlaytimeAdjustment.user_id == target_user_id,
+        )
+    )
+    if game_id:
+        adjustments_q = adjustments_q.filter(or_(PlaytimeAdjustment.game_id == game_id, Game.canonical_game_id == game_id))
+    adjustment_rows = adjustments_q.order_by(PlaytimeAdjustment.created_at.desc()).limit(limit).all()
+
+    combined = [
         {
+            "entry_kind": "manual",
             "id": row.id,
+            "row_key": f"manual-{row.id}",
             "user_id": row.user_id,
             "game_id": row.game_id,
             "game_display_name": game.display_name,
@@ -166,9 +181,29 @@ def list_own_manual_playtime(
             "source": row.source.value,
             "note": row.note,
             "created_at": row.created_at,
+            "can_delete": True,
         }
-        for row, game in rows
+        for row, game in manual_rows
+    ] + [
+        {
+            "entry_kind": "adjustment",
+            "id": row.id,
+            "row_key": f"adjustment-{row.id}",
+            "user_id": row.user_id,
+            "game_id": row.game_id,
+            "game_display_name": game.display_name,
+            "canonical_game_id": game.canonical_game_id or game.id,
+            "duration_seconds": row.adjustment_seconds,
+            "source": "adjustment",
+            "note": row.reason,
+            "created_at": row.created_at,
+            "can_delete": False,
+        }
+        for row, game in adjustment_rows
     ]
+
+    combined.sort(key=lambda item: item.get("created_at") or datetime.min.replace(tzinfo=timezone.utc), reverse=True)
+    return combined[:limit]
 
 
 @router.delete("/manual-playtime/{entry_id}")
@@ -370,6 +405,59 @@ def add_adjustment(payload: AdjustmentCreate, admin=Depends(require_permission(P
     }
 
 
+@router.post("/self/adjustments")
+def add_own_adjustment(
+    payload: AdjustmentCreate,
+    user: AuthUser = Depends(require_permission(PermissionCode.PLAYTIME_MANAGE_OWN)),
+    db: Session = Depends(get_db),
+):
+    if user.tracked_user_id is None and not user.is_legacy_admin:
+        raise HTTPException(status_code=403, detail="Account principal required")
+    guild_id = resolve_guild_id(db, payload.guild_id)
+    if user.tracked_user_id is not None and payload.user_id != user.tracked_user_id:
+        raise HTTPException(status_code=403, detail="Cannot create adjustment for another user")
+
+    game_id = payload.game_id
+    custom_title = (payload.custom_game_title or "").strip()
+    if payload.use_custom_game_title:
+        if len(custom_title) > 255:
+            raise HTTPException(status_code=400, detail="custom_game_title must be 255 characters or fewer")
+        game = _create_new_custom_game(db, custom_title)
+        game_id = game.id
+    elif custom_title:
+        raise HTTPException(status_code=400, detail="custom_game_title provided without enabling override")
+    if not game_id:
+        raise HTTPException(status_code=400, detail="Select a game or provide a custom game title")
+
+    selected_game = db.query(Game).filter(Game.id == game_id).first()
+    if not selected_game:
+        raise HTTPException(status_code=404, detail="Game not found")
+    selected_game = resolve_canonical_game(db, selected_game)
+
+    seconds = to_seconds(abs(payload.hours), abs(payload.minutes)) * (1 if payload.sign >= 0 else -1)
+    try:
+        row = create_adjustment(
+            db,
+            guild_id=guild_id,
+            user_id=payload.user_id,
+            game_id=selected_game.id,
+            adjustment_seconds=seconds,
+            reason=payload.reason,
+            created_by=None,
+            actor_account_id=user.account_id,
+            actor_type="account",
+            actor_label=user.username,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {
+        "id": row.id,
+        "adjustment_seconds": row.adjustment_seconds,
+        "game_id": selected_game.id,
+        "game_display_name": selected_game.display_name,
+    }
+
+
 @router.post("/set-total")
 def set_total(payload: SetAbsoluteTotalRequest, admin=Depends(require_permission(PermissionCode.PLAYTIME_MANAGE_ALL)), db: Session = Depends(get_db)):
     guild_id = resolve_guild_id(db, payload.guild_id)
@@ -402,6 +490,58 @@ def set_total(payload: SetAbsoluteTotalRequest, admin=Depends(require_permission
             actor_account_id=admin.account_id,
             actor_type="legacy_admin" if admin.is_legacy_admin else "account",
             actor_label=admin.username,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {
+        "id": adjustment.id,
+        "delta_seconds": adjustment.adjustment_seconds,
+        "game_id": selected_game.id,
+        "game_display_name": selected_game.display_name,
+    }
+
+
+@router.post("/self/set-total")
+def set_own_total(
+    payload: SetAbsoluteTotalRequest,
+    user: AuthUser = Depends(require_permission(PermissionCode.PLAYTIME_MANAGE_OWN)),
+    db: Session = Depends(get_db),
+):
+    if user.tracked_user_id is None and not user.is_legacy_admin:
+        raise HTTPException(status_code=403, detail="Account principal required")
+    guild_id = resolve_guild_id(db, payload.guild_id)
+    if user.tracked_user_id is not None and payload.user_id != user.tracked_user_id:
+        raise HTTPException(status_code=403, detail="Cannot set total for another user")
+
+    game_id = payload.game_id
+    custom_title = (payload.custom_game_title or "").strip()
+    if payload.use_custom_game_title:
+        if len(custom_title) > 255:
+            raise HTTPException(status_code=400, detail="custom_game_title must be 255 characters or fewer")
+        game = _create_new_custom_game(db, custom_title)
+        game_id = game.id
+    elif custom_title:
+        raise HTTPException(status_code=400, detail="custom_game_title provided without enabling override")
+    if not game_id:
+        raise HTTPException(status_code=400, detail="Select a game or provide a custom game title")
+
+    selected_game = db.query(Game).filter(Game.id == game_id).first()
+    if not selected_game:
+        raise HTTPException(status_code=404, detail="Game not found")
+    selected_game = resolve_canonical_game(db, selected_game)
+
+    try:
+        adjustment = set_absolute_total(
+            db,
+            guild_id=guild_id,
+            user_id=payload.user_id,
+            game_id=selected_game.id,
+            desired_total_seconds=payload.desired_total_seconds,
+            reason=payload.reason,
+            created_by=None,
+            actor_account_id=user.account_id,
+            actor_type="account",
+            actor_label=user.username,
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc

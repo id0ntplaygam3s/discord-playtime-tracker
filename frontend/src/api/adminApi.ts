@@ -113,6 +113,21 @@ export async function addAdjustment(payload: {
   return data;
 }
 
+export async function addOwnAdjustment(payload: {
+  guild_id: number;
+  user_id: number;
+  game_id?: number;
+  use_custom_game_title?: boolean;
+  custom_game_title?: string;
+  hours: number;
+  minutes: number;
+  sign: number;
+  reason: string;
+}) {
+  const { data } = await client.post('/management/self/adjustments', payload);
+  return data;
+}
+
 export async function setTotal(payload: {
   guild_id: number;
   user_id: number;
@@ -123,6 +138,19 @@ export async function setTotal(payload: {
   reason: string;
 }) {
   const { data } = await client.post('/management/set-total', payload);
+  return data;
+}
+
+export async function setOwnTotal(payload: {
+  guild_id: number;
+  user_id: number;
+  game_id?: number;
+  use_custom_game_title?: boolean;
+  custom_game_title?: string;
+  desired_total_seconds: number;
+  reason: string;
+}) {
+  const { data } = await client.post('/management/self/set-total', payload);
   return data;
 }
 
@@ -219,6 +247,16 @@ export async function getUserPermissionOverrides(accountId: number) {
 
 export async function setUserPermissionOverride(accountId: number, permission: string, mode: 'inherit' | 'allow' | 'deny') {
   const { data } = await client.post(`/admin/permissions/users/${accountId}`, { permission, mode });
+  return data;
+}
+
+export async function listPermissionOverrideAccounts(guildId: number) {
+  const { data } = await client.get('/admin/permissions/accounts', { params: { guild_id: guildId } });
+  return data;
+}
+
+export async function resetPermissionsToDefaults() {
+  const { data } = await client.post('/admin/permissions/reset-defaults');
   return data;
 }
 

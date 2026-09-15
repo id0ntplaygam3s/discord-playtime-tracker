@@ -21,7 +21,7 @@ from app.models import (
     UserAccount,
     UserPermissionOverride,
 )
-from app.services.authz_service import resolve_permission
+from app.services.authz_service import ensure_roles_and_permissions, resolve_permission
 from app.services.session_service import write_audit_log
 from app.services.settings_service import get_all_settings, set_setting
 from app.workers.demo_data import seed_demo_data
@@ -373,6 +373,35 @@ def list_user_permission_overrides(
     return [{"permission": perm.code, "is_allowed": row.is_allowed} for row, perm in rows]
 
 
+@router.get("/permissions/accounts")
+def list_permission_override_accounts(
+    guild_id: int = Query(default=0),
+    user: AuthUser = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    _require_permission_or_admin(db, user, PermissionCode.PERMISSIONS_VIEW)
+    guild_id = resolve_guild_id(db, guild_id)
+    rows = (
+        db.query(User, UserAccount, AppRole)
+        .join(UserAccount, UserAccount.user_id == User.id)
+        .join(AppRole, AppRole.id == UserAccount.role_id)
+        .filter(User.guild_id == guild_id)
+        .order_by(User.display_name.asc())
+        .all()
+    )
+    return [
+        {
+            "user_id": tracked_user.id,
+            "username": tracked_user.username,
+            "display_name": tracked_user.display_name,
+            "account_id": account.id,
+            "account_status": account.status.value,
+            "role": role.name.value,
+        }
+        for tracked_user, account, role in rows
+    ]
+
+
 @router.post("/permissions/users/{account_id}")
 def set_user_permission_override(
     account_id: int,
@@ -423,6 +452,30 @@ def set_user_permission_override(
     )
     db.commit()
     return {"ok": True}
+
+
+@router.post("/permissions/reset-defaults")
+def reset_permissions_to_defaults(
+    user: AuthUser = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    _require_permission_or_admin(db, user, PermissionCode.PERMISSIONS_MANAGE)
+    ensure_roles_and_permissions(db)
+    cleared_overrides = db.query(UserPermissionOverride).delete(synchronize_session=False)
+    write_audit_log(
+        db,
+        guild_id=resolve_guild_id(db, 0),
+        action=AuditAction.permission_changed,
+        **audit_actor_fields(user),
+        target_user_id=None,
+        target_game_id=None,
+        change_seconds=None,
+        reason="Permissions reset to defaults",
+        metadata_json={"cleared_user_overrides": int(cleared_overrides or 0)},
+        commit=False,
+    )
+    db.commit()
+    return {"ok": True, "cleared_user_overrides": int(cleared_overrides or 0)}
 
 
 @router.get("/settings")
