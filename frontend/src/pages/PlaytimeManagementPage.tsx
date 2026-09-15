@@ -55,6 +55,7 @@ export default function PlaytimeManagementPage() {
   const [entries, setEntries] = useState<ManualEntry[]>([]);
   const [canManageAll, setCanManageAll] = useState(false);
   const [currentTrackedUserId, setCurrentTrackedUserId] = useState<number | null>(null);
+  const [initialized, setInitialized] = useState(false);
 
   const [userId, setUserId] = useState<number>(0);
   const [gameId, setGameId] = useState<number>(0);
@@ -125,6 +126,7 @@ export default function PlaytimeManagementPage() {
         ? await listManualPlaytime(guildId, nextUserId || userId || undefined, nextGameId || gameId || undefined, 40)
         : await listOwnManualPlaytime(guildId, nextGameId || gameId || undefined, 40);
       setEntries(Array.isArray(rows) ? rows : []);
+      setError((current) => (current === 'Failed to load manual entries' ? null : current));
     } catch (err: any) {
       setEntries([]);
       setError(err?.response?.data?.detail || 'Failed to load manual entries');
@@ -147,18 +149,21 @@ export default function PlaytimeManagementPage() {
         }
         await refreshOptions(all);
         await refreshEntries(me.tracked_user_id || undefined, undefined, all);
+        setInitialized(true);
         return;
       } catch {
         setCanManageAll(false);
       }
       await refreshOptions();
       await refreshEntries();
+      setInitialized(true);
     })();
   }, [guildId]);
 
   useEffect(() => {
+    if (!initialized) return;
     void refreshEntries();
-  }, [userId, gameId, canManageAll]);
+  }, [userId, gameId, canManageAll, initialized]);
 
   const selectedUser = useMemo(() => users.find((u) => u.id === Number(userId)), [users, userId]);
   const selectedGame = useMemo(() => games.find((g) => g.id === Number(gameId)), [games, gameId]);
