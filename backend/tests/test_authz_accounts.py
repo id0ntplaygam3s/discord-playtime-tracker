@@ -212,3 +212,31 @@ def test_custom_title_requires_override_flag(client, db_session):
     )
     assert ok.status_code == 200
     assert ok.json().get('game_id')
+
+
+def test_can_demote_last_account_admin_if_legacy_admin_exists(client, db_session):
+    from app.models import AccountStatus, AppRole, AppRoleName, User, UserAccount
+    from app.services.authz_service import ensure_roles_and_permissions
+
+    headers = _admin_header(client)
+    ensure_roles_and_permissions(db_session)
+    db_session.commit()
+
+    role_admin = db_session.query(AppRole).filter(AppRole.name == AppRoleName.admin).first()
+    user = User(guild_id=1, discord_user_id=6011, username='acctadmin', display_name='Account Admin')
+    db_session.add(user)
+    db_session.commit()
+    db_session.refresh(user)
+
+    account = UserAccount(
+        user_id=user.id,
+        role_id=role_admin.id,
+        password_hash='placeholder',
+        status=AccountStatus.active,
+    )
+    db_session.add(account)
+    db_session.commit()
+    db_session.refresh(account)
+
+    demote = client.post(f'/api/admin/users/{account.id}/role', json={'role': 'user'}, headers=headers)
+    assert demote.status_code == 200

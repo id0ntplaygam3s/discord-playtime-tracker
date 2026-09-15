@@ -12,7 +12,7 @@ from app.core.permissions import PermissionCode
 from app.core.config import get_settings
 from app.services.settings_service import get_setting
 from app.db.session import get_db
-from app.models import Game, ManualPlaytime, ManualSource, User
+from app.models import Game, ManualPlaytime, ManualSource, PlaytimeAdjustment, User
 from app.schemas.management import (
     AdjustmentCreate,
     ManualPlaytimeCreate,
@@ -39,6 +39,28 @@ from app.services.steam_import import fetch_steam_owned_games
 router = APIRouter(prefix="/management", tags=["management"])
 
 
+def _create_new_custom_game(db: Session, title: str) -> Game:
+    display_name = (title or "").strip()
+    if not display_name:
+        raise HTTPException(status_code=400, detail="custom_game_title is required when override is enabled")
+
+    normalized_base = normalize_game_name(display_name)
+    if not normalized_base:
+        raise HTTPException(status_code=400, detail="custom_game_title must contain letters or numbers")
+
+    normalized_name = normalized_base
+    suffix = 1
+    while db.query(Game.id).filter(Game.normalized_name == normalized_name).first() is not None:
+        suffix += 1
+        normalized_name = f"{normalized_base}__manual__{suffix}"
+
+    game = Game(normalized_name=normalized_name, display_name=display_name)
+    db.add(game)
+    db.commit()
+    db.refresh(game)
+    return game
+
+
 @router.get("/manual-playtime")
 def list_manual_playtime(
     guild_id: int = Query(default=0),
@@ -58,10 +80,24 @@ def list_manual_playtime(
     if game_id:
         query = query.filter(or_(ManualPlaytime.game_id == game_id, Game.canonical_game_id == game_id))
 
-    rows = query.order_by(ManualPlaytime.created_at.desc()).limit(limit).all()
-    return [
+    manual_rows = query.order_by(ManualPlaytime.created_at.desc()).limit(limit).all()
+
+    adjustments_q = (
+        db.query(PlaytimeAdjustment, Game)
+        .join(Game, Game.id == PlaytimeAdjustment.game_id)
+        .filter(PlaytimeAdjustment.guild_id == guild_id)
+    )
+    if user_id:
+        adjustments_q = adjustments_q.filter(PlaytimeAdjustment.user_id == user_id)
+    if game_id:
+        adjustments_q = adjustments_q.filter(or_(PlaytimeAdjustment.game_id == game_id, Game.canonical_game_id == game_id))
+    adjustment_rows = adjustments_q.order_by(PlaytimeAdjustment.created_at.desc()).limit(limit).all()
+
+    combined = [
         {
+            "entry_kind": "manual",
             "id": row.id,
+            "row_key": f"manual-{row.id}",
             "user_id": row.user_id,
             "game_id": row.game_id,
             "game_display_name": game.display_name,
@@ -70,9 +106,29 @@ def list_manual_playtime(
             "source": row.source.value,
             "note": row.note,
             "created_at": row.created_at,
+            "can_delete": True,
         }
-        for row, game in rows
+        for row, game in manual_rows
+    ] + [
+        {
+            "entry_kind": "adjustment",
+            "id": row.id,
+            "row_key": f"adjustment-{row.id}",
+            "user_id": row.user_id,
+            "game_id": row.game_id,
+            "game_display_name": game.display_name,
+            "canonical_game_id": game.canonical_game_id or game.id,
+            "duration_seconds": row.adjustment_seconds,
+            "source": "adjustment",
+            "note": row.reason,
+            "created_at": row.created_at,
+            "can_delete": False,
+        }
+        for row, game in adjustment_rows
     ]
+
+    combined.sort(key=lambda item: item.get("created_at") or datetime.min.replace(tzinfo=timezone.utc), reverse=True)
+    return combined[:limit]
 
 
 @router.get("/self/manual-playtime")
@@ -83,12 +139,17 @@ def list_own_manual_playtime(
     user: AuthUser = Depends(require_permission(PermissionCode.PLAYTIME_MANAGE_OWN)),
     db: Session = Depends(get_db),
 ):
-    if user.tracked_user_id is None:
+    if user.tracked_user_id is None and not user.is_legacy_admin:
         raise HTTPException(status_code=403, detail="Account principal required")
     guild_id = resolve_guild_id(db, guild_id)
+    target_user_id = user.tracked_user_id
+    if target_user_id is None and user.is_legacy_admin:
+        target_user_id = db.query(User.id).filter(User.guild_id == guild_id).order_by(User.id.asc()).scalar()
+    if target_user_id is None:
+        return []
     query = db.query(ManualPlaytime, Game).join(Game, Game.id == ManualPlaytime.game_id).filter(
         ManualPlaytime.guild_id == guild_id,
-        ManualPlaytime.user_id == user.tracked_user_id,
+        ManualPlaytime.user_id == target_user_id,
         ManualPlaytime.deleted_at.is_(None),
     )
     if game_id:
@@ -153,11 +214,9 @@ def add_manual_playtime(
     game_id = payload.game_id
     custom_title = (payload.custom_game_title or "").strip()
     if payload.use_custom_game_title:
-        if not custom_title:
-            raise HTTPException(status_code=400, detail="custom_game_title is required when override is enabled")
         if len(custom_title) > 255:
             raise HTTPException(status_code=400, detail="custom_game_title must be 255 characters or fewer")
-        game = get_or_create_game(db, custom_title, None, None)
+        game = _create_new_custom_game(db, custom_title)
         game_id = game.id
     elif custom_title:
         raise HTTPException(status_code=400, detail="custom_game_title provided without enabling override")
@@ -192,23 +251,21 @@ def add_own_manual_playtime(
     user: AuthUser = Depends(require_permission(PermissionCode.PLAYTIME_MANAGE_OWN)),
     db: Session = Depends(get_db),
 ):
-    if user.tracked_user_id is None:
+    if user.tracked_user_id is None and not user.is_legacy_admin:
         raise HTTPException(status_code=403, detail="Account principal required")
     can_create = bool(get_setting(db, "users_can_create_own_manual", True))
     if not can_create:
         raise HTTPException(status_code=403, detail="Users cannot create manual entries")
     guild_id = resolve_guild_id(db, payload.guild_id)
-    if payload.user_id != user.tracked_user_id:
+    if user.tracked_user_id is not None and payload.user_id != user.tracked_user_id:
         raise HTTPException(status_code=403, detail="Cannot create playtime for another user")
 
     game_id = payload.game_id
     custom_title = (payload.custom_game_title or "").strip()
     if payload.use_custom_game_title:
-        if not custom_title:
-            raise HTTPException(status_code=400, detail="custom_game_title is required when override is enabled")
         if len(custom_title) > 255:
             raise HTTPException(status_code=400, detail="custom_game_title must be 255 characters or fewer")
-        game = get_or_create_game(db, custom_title, None, None)
+        game = _create_new_custom_game(db, custom_title)
         game_id = game.id
     elif custom_title:
         raise HTTPException(status_code=400, detail="custom_game_title provided without enabling override")
@@ -224,7 +281,7 @@ def add_own_manual_playtime(
     row = create_manual_playtime(
         db,
         guild_id=guild_id,
-        user_id=user.tracked_user_id,
+        user_id=payload.user_id,
         game_id=selected_game.id,
         duration_seconds=duration,
         source=payload.source,
@@ -244,23 +301,24 @@ def delete_own_manual_playtime(
     user: AuthUser = Depends(require_permission(PermissionCode.PLAYTIME_MANAGE_OWN)),
     db: Session = Depends(get_db),
 ):
-    if user.tracked_user_id is None:
+    if user.tracked_user_id is None and not user.is_legacy_admin:
         raise HTTPException(status_code=403, detail="Account principal required")
     can_delete = bool(get_setting(db, "users_can_delete_own_manual", True))
     if not can_delete:
         raise HTTPException(status_code=403, detail="Users cannot delete manual entries")
 
     guild_id = resolve_guild_id(db, guild_id)
-    row = (
+    row_query = (
         db.query(ManualPlaytime)
         .filter(
             ManualPlaytime.id == entry_id,
             ManualPlaytime.guild_id == guild_id,
-            ManualPlaytime.user_id == user.tracked_user_id,
             ManualPlaytime.deleted_at.is_(None),
         )
-        .first()
     )
+    if user.tracked_user_id is not None:
+        row_query = row_query.filter(ManualPlaytime.user_id == user.tracked_user_id)
+    row = row_query.first()
     if not row:
         raise HTTPException(status_code=404, detail="Manual playtime entry not found")
     row.deleted_at = datetime.now(timezone.utc)

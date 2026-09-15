@@ -11,6 +11,7 @@ from app.api.guilds import resolve_guild_id
 from app.db.session import get_db
 from app.models import (
     AccountStatus,
+    AdminUser,
     AppRole,
     AppRoleName,
     AuditAction,
@@ -53,6 +54,7 @@ def _require_permission_or_admin(db: Session, user: AuthUser, permission_code: s
 
 
 def _prevent_last_admin_loss(db: Session, account: UserAccount, new_role_name: str | None = None, disable: bool = False) -> None:
+    has_active_legacy_admin = db.query(AdminUser.id).filter(AdminUser.is_active.is_(True)).first() is not None
     role_name = account.role.name.value
     will_be_admin = role_name == AppRoleName.admin.value
     if new_role_name is not None:
@@ -67,7 +69,7 @@ def _prevent_last_admin_loss(db: Session, account: UserAccount, new_role_name: s
             .filter(AppRole.name == AppRoleName.admin, UserAccount.status == AccountStatus.active)
             .count()
         )
-        if admin_count <= 1:
+        if admin_count <= 1 and not has_active_legacy_admin:
             raise HTTPException(status_code=400, detail="Cannot disable the last active admin account")
         return
 
@@ -78,7 +80,7 @@ def _prevent_last_admin_loss(db: Session, account: UserAccount, new_role_name: s
             .filter(AppRole.name == AppRoleName.admin, UserAccount.status == AccountStatus.active)
             .count()
         )
-        if admin_count <= 1:
+        if admin_count <= 1 and not has_active_legacy_admin:
             raise HTTPException(status_code=400, detail="Cannot demote the last active admin account")
 
 

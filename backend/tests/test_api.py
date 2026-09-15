@@ -344,3 +344,117 @@ def test_active_sessions_allows_guild_id_zero_fallback(client, db_session):
     resp = client.get('/api/activity/active', params={'guild_id': 0}, headers=headers)
     assert resp.status_code == 200
     assert any(row['user_id'] == user.id for row in resp.json())
+
+
+def test_recent_entries_include_adjustments(client, db_session):
+    from app.models import Game, User
+
+    headers = _auth_header(client)
+    user = User(guild_id=1, discord_user_id=4545, username='recent', display_name='Recent User')
+    game = Game(normalized_name='recent-game', display_name='Recent Game')
+    db_session.add_all([user, game])
+    db_session.commit()
+    db_session.refresh(user)
+    db_session.refresh(game)
+
+    add_manual = client.post(
+        '/api/management/manual-playtime',
+        json={
+            'guild_id': 1,
+            'user_id': user.id,
+            'game_id': game.id,
+            'hours': 1,
+            'minutes': 0,
+            'source': 'historical',
+            'note': 'manual row',
+        },
+        headers=headers,
+    )
+    assert add_manual.status_code == 200
+
+    add_adjustment = client.post(
+        '/api/management/adjustments',
+        json={
+            'guild_id': 1,
+            'user_id': user.id,
+            'game_id': game.id,
+            'hours': 0,
+            'minutes': 30,
+            'sign': 1,
+            'reason': 'adjust row',
+        },
+        headers=headers,
+    )
+    assert add_adjustment.status_code == 200
+
+    recent = client.get(
+        '/api/management/manual-playtime',
+        params={'guild_id': 1, 'user_id': user.id, 'game_id': game.id, 'limit': 40},
+        headers=headers,
+    )
+    assert recent.status_code == 200
+    rows = recent.json()
+    assert any(row['source'] == 'historical' for row in rows)
+    assert any(row['source'] == 'adjustment' for row in rows)
+
+
+def test_custom_title_override_creates_distinct_game(client, db_session):
+    from app.models import Game, User
+
+    headers = _auth_header(client)
+    user = User(guild_id=1, discord_user_id=4646, username='custom', display_name='Custom User')
+    base_game = Game(normalized_name='base-game', display_name='Base Game')
+    db_session.add_all([user, base_game])
+    db_session.commit()
+    db_session.refresh(user)
+    db_session.refresh(base_game)
+
+    resp = client.post(
+        '/api/management/manual-playtime',
+        json={
+            'guild_id': 1,
+            'user_id': user.id,
+            'game_id': base_game.id,
+            'use_custom_game_title': True,
+            'custom_game_title': 'My Custom Title',
+            'hours': 2,
+            'minutes': 0,
+            'source': 'historical',
+            'note': 'custom title row',
+        },
+        headers=headers,
+    )
+    assert resp.status_code == 200
+    new_game_id = int(resp.json()['game_id'])
+    assert new_game_id != base_game.id
+
+    created = db_session.query(Game).filter(Game.id == new_game_id).first()
+    assert created is not None
+    assert created.display_name == 'My Custom Title'
+
+
+def test_legacy_admin_can_use_self_manual_endpoint(client, db_session):
+    from app.models import Game, User
+
+    headers = _auth_header(client)
+    user = User(guild_id=1, discord_user_id=4747, username='legacy-self', display_name='Legacy Self')
+    game = Game(normalized_name='legacy-self-game', display_name='Legacy Self Game')
+    db_session.add_all([user, game])
+    db_session.commit()
+    db_session.refresh(user)
+    db_session.refresh(game)
+
+    resp = client.post(
+        '/api/management/self/manual-playtime',
+        json={
+            'guild_id': 1,
+            'user_id': user.id,
+            'game_id': game.id,
+            'hours': 1,
+            'minutes': 0,
+            'source': 'historical',
+            'note': 'legacy-admin self path',
+        },
+        headers=headers,
+    )
+    assert resp.status_code == 200

@@ -62,6 +62,12 @@ def resolve_permission(
         return True
 
     ensure_roles_and_permissions(db)
+
+    if role_id is not None:
+        role = db.query(AppRole).filter(AppRole.id == role_id).first()
+        if role is not None and role.name == AppRoleName.admin:
+            return True
+
     perm = db.query(Permission).filter(Permission.code == permission_code).first()
     if perm is None:
         return False

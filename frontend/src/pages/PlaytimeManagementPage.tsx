@@ -12,7 +12,7 @@ import {
   listUsers,
   setTotal,
 } from '../api/adminApi';
-import { formatDuration } from '../utils/time';
+import { formatDuration, formatSignedDuration } from '../utils/time';
 
 type OptionRow = {
   id: number;
@@ -29,15 +29,18 @@ function normalizeRows(payload: any): OptionRow[] {
 }
 
 type ManualEntry = {
+  row_key?: string;
+  entry_kind?: 'manual' | 'adjustment';
   id: number;
   user_id: number;
   game_id: number;
   game_display_name?: string;
   canonical_game_id?: number;
   duration_seconds: number;
-  source: 'historical' | 'imported' | 'correction';
+  source: 'historical' | 'imported' | 'correction' | 'adjustment';
   note?: string | null;
   created_at?: string;
+  can_delete?: boolean;
 };
 
 export default function PlaytimeManagementPage() {
@@ -398,12 +401,12 @@ export default function PlaytimeManagementPage() {
       )}
 
       <div className="panel">
-        <h3>Recent Manual Entries</h3>
+        <h3>Recent Entries</h3>
         <div className="subtle" style={{ marginBottom: 8 }}>
-          Showing latest entries for the selected user/game. Use delete for mistaken manual records.
+          Showing latest manual entries and adjustments for the selected user/game.
         </div>
         {loadingEntries && <div className="subtle">Loading entries...</div>}
-        {!loadingEntries && entries.length === 0 && <div className="empty">No manual entries found for this selection.</div>}
+        {!loadingEntries && entries.length === 0 && <div className="empty">No entries found for this selection.</div>}
         {!loadingEntries && entries.length > 0 && (
           <div className="table-wrap">
             <table className="data-table">
@@ -419,14 +422,18 @@ export default function PlaytimeManagementPage() {
               </thead>
               <tbody>
                 {entries.map((entry) => (
-                  <tr key={entry.id}>
+                  <tr key={entry.row_key || `${entry.entry_kind || 'manual'}-${entry.id}`}>
                     <td>{entry.created_at ? new Date(entry.created_at).toLocaleString() : '-'}</td>
                     <td>{entry.game_display_name || `#${entry.game_id}`}</td>
                     <td>{entry.source}</td>
-                    <td>{formatDuration(entry.duration_seconds)}</td>
+                    <td>{entry.source === 'adjustment' ? formatSignedDuration(entry.duration_seconds) : formatDuration(entry.duration_seconds)}</td>
                     <td>{entry.note || '-'}</td>
                     <td>
-                      <button type="button" onClick={() => void handleDeleteEntry(entry.id)}>Delete</button>
+                      {entry.can_delete !== false ? (
+                        <button type="button" onClick={() => void handleDeleteEntry(entry.id)}>Delete</button>
+                      ) : (
+                        <span className="subtle">-</span>
+                      )}
                     </td>
                   </tr>
                 ))}
