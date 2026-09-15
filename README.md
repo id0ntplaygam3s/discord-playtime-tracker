@@ -18,6 +18,7 @@ Track game activity your bot can observe in Discord, combine it with historical/
 - [Environment Variables](#environment-variables)
 - [First Login](#first-login)
 - [Usage: Imports](#usage-imports)
+- [Usage: Games Admin](#usage-games-admin)
 - [Operations](#operations)
 - [Technical Reference](#technical-reference)
 - [Troubleshooting](#troubleshooting)
@@ -316,9 +317,15 @@ Dashboard maintains independent state for:
 Most Played Games still defaults selected game to the first ranked game.
 Most Active in Selected Game and Most Active Players (All Games) use independent date-range tabs.
 
+Games and Games Graph pages now include a rows dropdown:
+- Default 30 rows
+- 50, 100, 250 options
+- All option for full overview
+
 ## Upgrade Notes
 Schema update adds account and RBAC tables through Alembic revision:
 - `0002_accounts_rbac_settings`
+- `0003_game_canonical_audit_actor`
 
 Upgrade command:
 ```bash
@@ -358,6 +365,27 @@ Behavior:
 - Imported Steam data is stored in `manual_playtime` with source `imported`.
 - No fake activity sessions are created.
 - Optional replace mode soft-deletes prior Steam imports from the same Steam profile tag before writing new records.
+
+## Usage: Games Admin
+The `Games Admin` page is available to users with `permissions.manage` and provides a UI for:
+- Rename game titles
+- Merge duplicate games into a canonical target
+- Unmerge previously merged game identities
+- Review merge suggestions and ignore/accept them
+
+Merge behavior:
+- Merges are non-destructive
+- Source records are hidden and linked to canonical targets
+- Historical rows retain source provenance
+- Aggregations resolve via canonical identity to avoid double counting
+
+Related API endpoints:
+- `GET /api/games/meta/catalog`
+- `POST /api/games/{game_id}/rename`
+- `POST /api/games/merge`
+- `POST /api/games/{game_id}/unmerge`
+- `GET /api/games/meta/merge-suggestions`
+- `POST /api/games/meta/merge-suggestions/{source_game_id}/{target_game_id}/ignore`
 
 ### CSV Imports (Historical Data)
 CSV header:

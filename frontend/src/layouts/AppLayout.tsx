@@ -7,6 +7,7 @@ const navItems: NavItem[] = [
   ['/', 'Dashboard', 'dashboard.view'],
   ['/games', 'Games', 'games.view'],
   ['/games-graph', 'Games (Graph)', 'games.view'],
+  ['/games-admin', 'Games Admin', 'permissions.manage'],
   ['/users', 'Users', 'users.view'],
   ['/users-graph', 'User Activity (Graph)', 'users.view'],
   ['/activity', 'Activity', 'playtime.view'],

@@ -9,6 +9,7 @@ import AuditLogPage from './pages/AuditLogPage';
 import ComparePage from './pages/ComparePage';
 import DashboardPage from './pages/DashboardPage';
 import GameProfilePage from './pages/GameProfilePage';
+import GamesAdminPage from './pages/GamesAdminPage';
 import GamesPage from './pages/GamesPage';
 import GamesGraphPage from './pages/GamesGraphPage';
 import ImportsPage from './pages/ImportsPage';
@@ -119,6 +120,7 @@ export default function App() {
   const canManageUsers = permissionSet.has('users.manage');
   const canViewRegistrations = permissionSet.has('registrations.view');
   const canViewPermissions = permissionSet.has('permissions.view');
+  const canManagePermissions = permissionSet.has('permissions.manage');
 
   return (
     <AppPreferencesProvider value={{ autoRefreshEnabled }}>
@@ -141,6 +143,7 @@ export default function App() {
         {canViewDashboard && <Route path="/" element={<DashboardPage />} />}
         {canViewGames && <Route path="/games" element={<GamesPage />} />}
         {canViewGames && <Route path="/games-graph" element={<GamesGraphPage />} />}
+        {canManagePermissions && <Route path="/games-admin" element={<GamesAdminPage />} />}
         {canViewGames && <Route path="/games/:gameId" element={<GameProfilePage />} />}
         {canViewUsers && <Route path="/users" element={<UsersPage />} />}
         {canViewUsers && <Route path="/users-graph" element={<UsersGraphPage />} />}

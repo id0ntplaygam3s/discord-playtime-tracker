@@ -63,3 +63,23 @@ export interface PermissionDefinition {
   code: string;
   description: string;
 }
+
+export interface AdminGameCatalogRow {
+  id: number;
+  display_name: string;
+  normalized_name: string;
+  is_hidden: boolean;
+  canonical_game_id: number | null;
+  canonical_game_name: string | null;
+  has_guild_data: boolean;
+}
+
+export interface MergeSuggestionRow {
+  source_game_id: number;
+  source_name: string;
+  target_game_id: number;
+  target_name: string;
+  confidence: 'high' | 'medium' | 'low';
+  reason: string;
+  score: number;
+}

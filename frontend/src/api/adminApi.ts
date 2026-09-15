@@ -235,3 +235,38 @@ export async function listGames(guildId: number) {
   const { data } = await client.get('/games', { params: { guild_id: guildId, page: 1, page_size: 100 } });
   return data;
 }
+
+export async function getGamesAdminCatalog(guildId: number, includeHidden = true) {
+  const { data } = await client.get('/games/meta/catalog', { params: { guild_id: guildId, include_hidden: includeHidden } });
+  return data;
+}
+
+export async function renameGame(guildId: number, gameId: number, displayName: string) {
+  const { data } = await client.post(`/games/${gameId}/rename`, { guild_id: guildId, display_name: displayName });
+  return data;
+}
+
+export async function mergeGames(guildId: number, sourceGameId: number, targetGameId: number, reason: string) {
+  const { data } = await client.post('/games/merge', {
+    guild_id: guildId,
+    source_game_id: sourceGameId,
+    target_game_id: targetGameId,
+    reason,
+  });
+  return data;
+}
+
+export async function unmergeGame(guildId: number, gameId: number, reason: string) {
+  const { data } = await client.post(`/games/${gameId}/unmerge`, { guild_id: guildId, reason });
+  return data;
+}
+
+export async function getMergeSuggestions(limit = 100, confidence?: 'high' | 'medium' | 'low') {
+  const { data } = await client.get('/games/meta/merge-suggestions', { params: { limit, confidence: confidence || undefined } });
+  return data;
+}
+
+export async function ignoreMergeSuggestion(guildId: number, sourceGameId: number, targetGameId: number) {
+  const { data } = await client.post(`/games/meta/merge-suggestions/${sourceGameId}/${targetGameId}/ignore`, { guild_id: guildId });
+  return data;
+}

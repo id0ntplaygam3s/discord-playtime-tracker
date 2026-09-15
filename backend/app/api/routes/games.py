@@ -392,6 +392,36 @@ def list_merge_suggestions(
     return rows
 
 
+@router.get("/meta/catalog")
+def list_games_admin_catalog(
+    guild_id: int = Query(default=0),
+    include_hidden: bool = Query(default=True),
+    _: object = Depends(require_permission(PermissionCode.PERMISSIONS_MANAGE)),
+    db: Session = Depends(get_db),
+):
+    guild_id = resolve_guild_id(db, guild_id)
+
+    games_q = db.query(Game)
+    if not include_hidden:
+        games_q = games_q.filter(Game.is_hidden.is_(False))
+    games = games_q.order_by(Game.display_name.asc(), Game.id.asc()).all()
+
+    canonical_names = {row.id: row.display_name for row in db.query(Game.id, Game.display_name).all()}
+
+    return [
+        {
+            "id": game.id,
+            "display_name": game.display_name,
+            "normalized_name": game.normalized_name,
+            "is_hidden": bool(game.is_hidden),
+            "canonical_game_id": game.canonical_game_id,
+            "canonical_game_name": canonical_names.get(game.canonical_game_id) if game.canonical_game_id else None,
+            "has_guild_data": _game_has_guild_data(db, guild_id, game.id),
+        }
+        for game in games
+    ]
+
+
 @router.post("/meta/merge-suggestions/{source_game_id}/{target_game_id}/ignore")
 def ignore_merge_suggestion(
     source_game_id: int,
