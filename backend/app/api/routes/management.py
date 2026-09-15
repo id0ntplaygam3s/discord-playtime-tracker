@@ -570,6 +570,16 @@ def csv_import(
     admin=Depends(require_permission(PermissionCode.IMPORTS_MANAGE)),
     db: Session = Depends(get_db),
 ):
+    def _format_import_errors(import_errors: list[dict]) -> str:
+        if not import_errors:
+            return "Import aborted due to validation errors"
+        preview = "; ".join(
+            f"row {err.get('row')}: {err.get('error')}"
+            for err in import_errors[:10]
+        )
+        suffix = "" if len(import_errors) <= 10 else f"; ... (+{len(import_errors) - 10} more)"
+        return f"Import aborted due to validation errors ({len(import_errors)} row(s)): {preview}{suffix}"
+
     guild_id = resolve_guild_id(db, payload.guild_id)
     all_or_nothing = payload.all_or_nothing
     import_mode = payload.import_mode
@@ -595,9 +605,8 @@ def csv_import(
                     .first()
                 )
             if not user:
-                errors.append({"row": idx, "error": "User not found"})
-                if all_or_nothing:
-                    raise ValueError("Import aborted due to validation errors")
+                user_identifier = f"discord_user_id={discord_user_id}" if discord_user_id is not None else f"discord_user={row.get('discord_user')}"
+                errors.append({"row": idx, "error": f"User not found ({user_identifier})"})
                 continue
 
             game = get_or_create_game(db, row["game"], None, None, commit=not all_or_nothing)
@@ -633,6 +642,11 @@ def csv_import(
                 )
             imported += 1
 
+        if all_or_nothing and errors:
+            if tx and tx.is_active:
+                tx.rollback()
+            raise HTTPException(status_code=400, detail=_format_import_errors(errors))
+
         if all_or_nothing:
             write_audit_log(
                 db,
@@ -662,6 +676,8 @@ def csv_import(
                 commit=True,
             )
     except Exception as exc:
+        if isinstance(exc, HTTPException):
+            raise
         if tx:
             if tx.is_active:
                 tx.rollback()
