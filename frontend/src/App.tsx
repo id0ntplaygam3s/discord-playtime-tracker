@@ -105,7 +105,6 @@ export default function App() {
     return <div className="panel">Loading account...</div>;
   }
 
-  const isAdmin = me.role_name === 'admin';
   const permissionSet = new Set(me.permissions || []);
 
   const canViewDashboard = permissionSet.has('dashboard.view');
@@ -128,7 +127,6 @@ export default function App() {
       <Route
         element={
           <AppLayout
-            isAdmin={isAdmin}
             me={me}
             onSignOut={handleSignOut}
             onSwitchToAdmin={handleSwitchToAdmin}

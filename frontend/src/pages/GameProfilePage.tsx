@@ -37,7 +37,7 @@ export default function GameProfilePage() {
   return (
     <div className="page-grid">
       <div className="panel">
-        <Link to="/games">Back to games</Link>
+        <Link to="/games" className="pill-link">Back to games</Link>
         <h2>{profile.display_name}</h2>
         <div className="status-grid">
           <div><strong>Combined:</strong> {formatDuration(profile.total_seconds)}</div>

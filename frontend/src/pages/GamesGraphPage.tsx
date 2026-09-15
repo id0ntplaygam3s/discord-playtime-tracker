@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import TopGamesChart from '../charts/TopGamesChart';
 import TopUsersChart from '../charts/TopUsersChart';
 import { getGameUsers, getTopGames } from '../api/trackerApi';
@@ -202,6 +203,37 @@ export default function GamesGraphPage() {
             title={splitByPlayer ? 'All Games Comparison (Split by Player)' : 'All Games Comparison'}
             height={Math.max(460, rows.length * 30 + 120)}
           />
+
+          <div className="panel">
+            <h3>Game Totals</h3>
+            <div className="subtle" style={{ marginBottom: 10 }}>
+              Click any row to update "Most Active In". Click a game name to open its profile page.
+            </div>
+            <div className="table-wrap">
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>Game</th>
+                    <th>Total Playtime</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((row) => (
+                    <tr
+                      key={`graph-row-${row.id}`}
+                      onClick={() => setSelectedGameId(row.id)}
+                      style={{ background: selectedGameId === row.id ? 'rgba(34, 211, 238, 0.12)' : 'transparent', cursor: 'pointer' }}
+                    >
+                      <td>
+                        <Link to={`/games/${row.id}`}>{row.name}</Link>
+                      </td>
+                      <td>{formatDuration(row.total_seconds)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
 
           <TopUsersChart
             data={selectedUsers}

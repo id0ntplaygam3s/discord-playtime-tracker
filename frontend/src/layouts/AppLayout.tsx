@@ -23,7 +23,6 @@ const navItems: NavItem[] = [
 ];
 
 interface AppLayoutProps {
-  isAdmin: boolean;
   me: MeResponse;
   onSignOut: () => void;
   onSwitchToAdmin: () => void;
@@ -35,7 +34,6 @@ interface AppLayoutProps {
 }
 
 export default function AppLayout({
-  isAdmin,
   me,
   onSignOut,
   onSwitchToAdmin,
@@ -86,7 +84,7 @@ export default function AppLayout({
           </label>
         </div>
         <div className="sidebar-actions">
-          {!isAdmin && (
+          {me.is_guest && (
             <button type="button" className="sidebar-btn" onClick={onSwitchToAdmin}>
               Return to Login
             </button>
