@@ -150,7 +150,7 @@ def set_absolute_total(
 
 
 def parse_csv_preview(content: bytes) -> tuple[list[dict], list[ImportRowError]]:
-    text_content = content.decode("utf-8")
+    text_content = content.decode("utf-8-sig")
     reader = csv.DictReader(io.StringIO(text_content))
     rows: list[dict] = []
     errors: list[ImportRowError] = []
@@ -159,7 +159,7 @@ def parse_csv_preview(content: bytes) -> tuple[list[dict], list[ImportRowError]]
     required_without_id = {"Discord User", "Game", "Hours", "Minutes", "Source", "Note"}
     required_with_id = {"Discord User ID", "Game", "Hours", "Minutes", "Source", "Note"}
     required_with_both = {"Discord User", "Discord User ID", "Game", "Hours", "Minutes", "Source", "Note"}
-    if fieldnames not in {required_without_id, required_with_id, required_with_both}:
+    if fieldnames not in [required_without_id, required_with_id, required_with_both]:
         errors.append(ImportRowError(row_number=0, message="Invalid headers"))
         return rows, errors
 

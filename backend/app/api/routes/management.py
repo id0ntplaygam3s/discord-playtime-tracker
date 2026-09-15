@@ -14,6 +14,7 @@ from app.services.settings_service import get_setting
 from app.db.session import get_db
 from app.models import Game, ManualPlaytime, ManualSource, PlaytimeAdjustment, User
 from app.schemas.management import (
+    CsvImportRequest,
     AdjustmentCreate,
     ManualPlaytimeCreate,
     SetAbsoluteTotalRequest,
@@ -565,13 +566,14 @@ def csv_preview(file: UploadFile = File(...), _=Depends(require_permission(Permi
 
 @router.post("/csv/import")
 def csv_import(
-    payload: dict,
+    payload: CsvImportRequest,
     admin=Depends(require_permission(PermissionCode.IMPORTS_MANAGE)),
     db: Session = Depends(get_db),
 ):
-    guild_id = resolve_guild_id(db, int(payload.get("guild_id") or 0))
-    all_or_nothing = bool(payload.get("all_or_nothing", True))
-    rows = payload.get("rows", [])
+    guild_id = resolve_guild_id(db, payload.guild_id)
+    all_or_nothing = payload.all_or_nothing
+    import_mode = payload.import_mode
+    rows = payload.rows
 
     imported = 0
     errors = []
@@ -599,20 +601,36 @@ def csv_import(
                 continue
 
             game = get_or_create_game(db, row["game"], None, None, commit=not all_or_nothing)
-            create_manual_playtime(
-                db,
-                guild_id=guild_id,
-                user_id=user.id,
-                game_id=game.id,
-                duration_seconds=to_seconds(int(row["hours"]), int(row["minutes"])),
-                source=ManualSource(row["source"]),
-                note=row.get("note"),
-                created_by=admin.admin_user_id,
-                actor_account_id=admin.account_id,
-                actor_type="legacy_admin" if admin.is_legacy_admin else "account",
-                actor_label=admin.username,
-                commit=not all_or_nothing,
-            )
+            duration_seconds = to_seconds(int(row["hours"]), int(row["minutes"]))
+            if import_mode == "overwrite":
+                set_absolute_total(
+                    db,
+                    guild_id=guild_id,
+                    user_id=user.id,
+                    game_id=game.id,
+                    desired_total_seconds=duration_seconds,
+                    reason=row.get("note") or "CSV overwrite import",
+                    created_by=admin.admin_user_id,
+                    actor_account_id=admin.account_id,
+                    actor_type="legacy_admin" if admin.is_legacy_admin else "account",
+                    actor_label=admin.username,
+                    commit=not all_or_nothing,
+                )
+            else:
+                create_manual_playtime(
+                    db,
+                    guild_id=guild_id,
+                    user_id=user.id,
+                    game_id=game.id,
+                    duration_seconds=duration_seconds,
+                    source=ManualSource(row["source"]),
+                    note=row.get("note"),
+                    created_by=admin.admin_user_id,
+                    actor_account_id=admin.account_id,
+                    actor_type="legacy_admin" if admin.is_legacy_admin else "account",
+                    actor_label=admin.username,
+                    commit=not all_or_nothing,
+                )
             imported += 1
 
         if all_or_nothing:
@@ -625,7 +643,7 @@ def csv_import(
                 target_game_id=None,
                 change_seconds=None,
                 reason=f"CSV import completed ({imported} rows)",
-                metadata_json={"imported_rows": imported, "all_or_nothing": True},
+                metadata_json={"imported_rows": imported, "all_or_nothing": True, "import_mode": import_mode},
                 commit=False,
             )
             tx.commit()
@@ -640,7 +658,7 @@ def csv_import(
                 target_game_id=None,
                 change_seconds=None,
                 reason=f"CSV import completed ({imported} rows)",
-                metadata_json={"imported_rows": imported, "all_or_nothing": False},
+                metadata_json={"imported_rows": imported, "all_or_nothing": False, "import_mode": import_mode},
                 commit=True,
             )
     except Exception as exc:

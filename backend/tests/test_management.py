@@ -161,6 +161,27 @@ def test_csv_import_all_or_nothing_rolls_back_on_error(client, db_session):
     assert db_session.query(AuditLog).count() == 0
 
 
+def test_csv_preview_parses_valid_rows(client):
+    headers = _auth_header(client)
+    csv_content = (
+        "Discord User ID,Discord User,Game,Hours,Minutes,Source,Note\n"
+        "746720799582584832,blackkingcj,FIFA 17,823,0,historical,PSN playtime export\n"
+    )
+
+    response = client.post(
+        '/api/management/csv/preview',
+        files={'file': ('blackkingcj_playtime.csv', csv_content, 'text/csv')},
+        headers=headers,
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert len(payload['valid_rows']) == 1
+    assert payload['valid_rows'][0]['discord_user_id'] == 746720799582584832
+    assert payload['valid_rows'][0]['game'] == 'FIFA 17'
+    assert payload['invalid_rows'] == []
+
+
 def test_steam_preview_requires_api_key(client, db_session, monkeypatch):
     import app.api.routes.management as management_routes
 
@@ -268,3 +289,81 @@ def test_csv_import_matches_discord_user_id(client, db_session):
     assert row is not None
     assert row.user_id == john.id
     assert row.duration_seconds == (2 * 3600) + (30 * 60)
+
+
+def test_csv_import_add_mode_accumulates_existing_total(client, db_session):
+    headers = _auth_header(client)
+    john = User(guild_id=1, discord_user_id=995001, username='john5', display_name='John Five')
+    db_session.add(john)
+    db_session.commit()
+    db_session.refresh(john)
+
+    from app.models import Game
+
+    game = Game(normalized_name='fifa 17', display_name='FIFA 17')
+    db_session.add(game)
+    db_session.commit()
+    db_session.refresh(game)
+
+    create_manual_playtime(db_session, 1, john.id, game.id, 3600, ManualSource.historical, 'seed', 1)
+
+    payload = {
+        'guild_id': 1,
+        'all_or_nothing': True,
+        'import_mode': 'add',
+        'rows': [
+            {
+                'discord_user_id': 995001,
+                'discord_user': '',
+                'game': 'FIFA 17',
+                'hours': 2,
+                'minutes': 0,
+                'source': 'historical',
+                'note': 'csv add',
+            }
+        ],
+    }
+
+    resp = client.post('/api/management/csv/import', json=payload, headers=headers)
+    assert resp.status_code == 200
+    assert resp.json()['imported'] == 1
+    assert total_seconds_for_user_game(db_session, 1, john.id, game.id) == 3 * 3600
+
+
+def test_csv_import_overwrite_mode_sets_absolute_total(client, db_session):
+    headers = _auth_header(client)
+    john = User(guild_id=1, discord_user_id=995002, username='john6', display_name='John Six')
+    db_session.add(john)
+    db_session.commit()
+    db_session.refresh(john)
+
+    from app.models import Game
+
+    game = Game(normalized_name='fifa 18', display_name='FIFA 18')
+    db_session.add(game)
+    db_session.commit()
+    db_session.refresh(game)
+
+    create_manual_playtime(db_session, 1, john.id, game.id, 5 * 3600, ManualSource.historical, 'seed', 1)
+
+    payload = {
+        'guild_id': 1,
+        'all_or_nothing': True,
+        'import_mode': 'overwrite',
+        'rows': [
+            {
+                'discord_user_id': 995002,
+                'discord_user': '',
+                'game': 'FIFA 18',
+                'hours': 2,
+                'minutes': 30,
+                'source': 'historical',
+                'note': 'csv overwrite',
+            }
+        ],
+    }
+
+    resp = client.post('/api/management/csv/import', json=payload, headers=headers)
+    assert resp.status_code == 200
+    assert resp.json()['imported'] == 1
+    assert total_seconds_for_user_game(db_session, 1, john.id, game.id) == (2 * 3600) + (30 * 60)

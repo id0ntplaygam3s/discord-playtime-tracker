@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Literal
+
 from pydantic import BaseModel, Field
 
 from app.models import ManualSource
@@ -71,3 +73,10 @@ class SteamImportResponse(BaseModel):
     imported: int
     replaced: int
     steam_id: str
+
+
+class CsvImportRequest(BaseModel):
+    guild_id: int
+    all_or_nothing: bool = True
+    import_mode: Literal["add", "overwrite"] = "add"
+    rows: list[dict]

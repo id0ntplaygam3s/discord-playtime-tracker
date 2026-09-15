@@ -164,6 +164,7 @@ export async function csvPreview(file: File) {
 export async function csvImport(payload: {
   guild_id: number;
   all_or_nothing: boolean;
+  import_mode: 'add' | 'overwrite';
   rows: any[];
 }) {
   const { data } = await client.post('/management/csv/import', payload);

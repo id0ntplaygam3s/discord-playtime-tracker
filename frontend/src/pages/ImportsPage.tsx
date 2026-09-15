@@ -19,6 +19,7 @@ export default function ImportsPage() {
   const guildId = Number(import.meta.env.VITE_GUILD_ID || 0);
   const [previewRows, setPreviewRows] = useState<any[]>([]);
   const [invalidRows, setInvalidRows] = useState<any[]>([]);
+  const [csvImportMode, setCsvImportMode] = useState<'add' | 'overwrite'>('add');
   const [users, setUsers] = useState<any[]>([]);
   const [selectedUserId, setSelectedUserId] = useState<number>(0);
   const [steamProfile, setSteamProfile] = useState('');
@@ -55,7 +56,12 @@ export default function ImportsPage() {
     setMessage(null);
     setError(null);
     try {
-      const result = await csvImport({ guild_id: guildId, all_or_nothing: true, rows: previewRows });
+      const result = await csvImport({
+        guild_id: guildId,
+        all_or_nothing: true,
+        import_mode: csvImportMode,
+        rows: previewRows,
+      });
       setMessage(`Imported ${result.imported} rows.`);
       setPreviewRows([]);
     } catch (err: any) {
@@ -101,6 +107,17 @@ export default function ImportsPage() {
       <div className="panel">
         <h2>CSV Imports</h2>
         <p className="subtle">Dry-run preview first, then commit in all-or-nothing mode.</p>
+        <div className="filters" style={{ marginBottom: 10 }}>
+          <label htmlFor="csv-import-mode">Import mode</label>
+          <select
+            id="csv-import-mode"
+            value={csvImportMode}
+            onChange={(e) => setCsvImportMode(e.target.value as 'add' | 'overwrite')}
+          >
+            <option value="add">Add CSV hours to existing totals</option>
+            <option value="overwrite">Overwrite total hours with CSV values</option>
+          </select>
+        </div>
         <input
           type="file"
           accept=".csv,text/csv"
