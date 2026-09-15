@@ -2,7 +2,8 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy import desc
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_current_user
+from app.api.deps import require_permission
+from app.core.permissions import PermissionCode
 from app.api.guilds import resolve_guild_id
 from app.db.session import get_db
 from app.models import ActivitySession, Game, User
@@ -14,7 +15,7 @@ router = APIRouter(prefix="/activity", tags=["activity"])
 @router.get("/active", response_model=list[ActiveSessionItem])
 def active_sessions(
     guild_id: int = Query(default=0),
-    _: object = Depends(get_current_user),
+    _: object = Depends(require_permission(PermissionCode.PLAYTIME_VIEW)),
     db: Session = Depends(get_db),
 ):
     guild_id = resolve_guild_id(db, guild_id)
@@ -45,7 +46,7 @@ def recent_activity(
     guild_id: int = Query(default=0),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100),
-    _: object = Depends(get_current_user),
+    _: object = Depends(require_permission(PermissionCode.PLAYTIME_VIEW)),
     db: Session = Depends(get_db),
 ):
     guild_id = resolve_guild_id(db, guild_id)

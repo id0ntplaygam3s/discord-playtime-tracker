@@ -1,8 +1,15 @@
 import { useEffect, useState } from 'react';
-import { getActiveSessions, getDaily, getOverview, getTopGames, getTopUsers } from '../api/trackerApi';
-import { OverviewStats, RankedPlaytime, TimeBucketPoint } from '../types';
+import { getActiveSessions, getActivityOverTime, getOverview, getTopGames, getTopUsers } from '../api/trackerApi';
+import { DateRangeKey, OverviewStats, RankedPlaytime, TimeBucketPoint } from '../types';
 
-export function useDashboardData(guildId: number, autoRefreshEnabled: boolean) {
+export function useDashboardData(
+  guildId: number,
+  autoRefreshEnabled: boolean,
+  allGamesActivityRange: DateRangeKey,
+  activityOverTimeRange: DateRangeKey,
+  allGamesCustomRange?: { from?: string; to?: string },
+  activityCustomRange?: { from?: string; to?: string },
+) {
   const [overview, setOverview] = useState<OverviewStats | null>(null);
   const [games, setGames] = useState<RankedPlaytime[]>([]);
   const [users, setUsers] = useState<RankedPlaytime[]>([]);
@@ -18,10 +25,10 @@ export function useDashboardData(guildId: number, autoRefreshEnabled: boolean) {
       setError(null);
       try {
         const [overviewRes, gamesRes, usersRes, dailyRes, activeRes] = await Promise.all([
-          getOverview(guildId),
-          getTopGames(guildId, 'combined'),
-          getTopUsers(guildId, 'combined'),
-          getDaily(guildId),
+          getOverview(guildId, 'all'),
+          getTopGames(guildId, 'combined', 10, 'all'),
+          getTopUsers(guildId, 'combined', 10, allGamesActivityRange, allGamesActivityRange === 'custom' ? allGamesCustomRange : undefined),
+          getActivityOverTime(guildId, activityOverTimeRange, activityOverTimeRange === 'custom' ? activityCustomRange : undefined),
           getActiveSessions(guildId),
         ]);
 
@@ -49,7 +56,7 @@ export function useDashboardData(guildId: number, autoRefreshEnabled: boolean) {
       cancelled = true;
       if (interval) window.clearInterval(interval);
     };
-  }, [guildId, autoRefreshEnabled]);
+  }, [guildId, autoRefreshEnabled, allGamesActivityRange, activityOverTimeRange, allGamesCustomRange?.from, allGamesCustomRange?.to, activityCustomRange?.from, activityCustomRange?.to]);
 
   return { overview, games, users, daily, active, loading, error };
 }

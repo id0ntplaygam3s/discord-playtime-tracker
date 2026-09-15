@@ -6,9 +6,11 @@ from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
-from app.api.deps import require_admin
+from app.api.deps import AuthUser, audit_actor_fields, require_permission
 from app.api.guilds import resolve_guild_id
+from app.core.permissions import PermissionCode
 from app.core.config import get_settings
+from app.services.settings_service import get_setting
 from app.db.session import get_db
 from app.models import Game, ManualPlaytime, ManualSource, User
 from app.schemas.management import (
@@ -31,6 +33,7 @@ from app.services.management_service import (
 from app.services.session_service import write_audit_log
 from app.services.session_service import get_or_create_game
 from app.models import AuditAction
+from app.services.game_identity_service import resolve_canonical_game
 from app.services.steam_import import fetch_steam_owned_games
 
 router = APIRouter(prefix="/management", tags=["management"])
@@ -42,15 +45,18 @@ def list_manual_playtime(
     user_id: int | None = Query(default=None),
     game_id: int | None = Query(default=None),
     limit: int = Query(default=50, ge=1, le=200),
-    _=Depends(require_admin),
+    _=Depends(require_permission(PermissionCode.PLAYTIME_MANAGE_ALL)),
     db: Session = Depends(get_db),
 ):
     guild_id = resolve_guild_id(db, guild_id)
-    query = db.query(ManualPlaytime).filter(ManualPlaytime.guild_id == guild_id, ManualPlaytime.deleted_at.is_(None))
+    query = db.query(ManualPlaytime, Game).join(Game, Game.id == ManualPlaytime.game_id).filter(
+        ManualPlaytime.guild_id == guild_id,
+        ManualPlaytime.deleted_at.is_(None),
+    )
     if user_id:
         query = query.filter(ManualPlaytime.user_id == user_id)
     if game_id:
-        query = query.filter(ManualPlaytime.game_id == game_id)
+        query = query.filter(or_(ManualPlaytime.game_id == game_id, Game.canonical_game_id == game_id))
 
     rows = query.order_by(ManualPlaytime.created_at.desc()).limit(limit).all()
     return [
@@ -58,12 +64,49 @@ def list_manual_playtime(
             "id": row.id,
             "user_id": row.user_id,
             "game_id": row.game_id,
+            "game_display_name": game.display_name,
+            "canonical_game_id": game.canonical_game_id or game.id,
             "duration_seconds": row.duration_seconds,
             "source": row.source.value,
             "note": row.note,
             "created_at": row.created_at,
         }
-        for row in rows
+        for row, game in rows
+    ]
+
+
+@router.get("/self/manual-playtime")
+def list_own_manual_playtime(
+    guild_id: int = Query(default=0),
+    game_id: int | None = Query(default=None),
+    limit: int = Query(default=50, ge=1, le=200),
+    user: AuthUser = Depends(require_permission(PermissionCode.PLAYTIME_MANAGE_OWN)),
+    db: Session = Depends(get_db),
+):
+    if user.tracked_user_id is None:
+        raise HTTPException(status_code=403, detail="Account principal required")
+    guild_id = resolve_guild_id(db, guild_id)
+    query = db.query(ManualPlaytime, Game).join(Game, Game.id == ManualPlaytime.game_id).filter(
+        ManualPlaytime.guild_id == guild_id,
+        ManualPlaytime.user_id == user.tracked_user_id,
+        ManualPlaytime.deleted_at.is_(None),
+    )
+    if game_id:
+        query = query.filter(or_(ManualPlaytime.game_id == game_id, Game.canonical_game_id == game_id))
+    rows = query.order_by(ManualPlaytime.created_at.desc()).limit(limit).all()
+    return [
+        {
+            "id": row.id,
+            "user_id": row.user_id,
+            "game_id": row.game_id,
+            "game_display_name": game.display_name,
+            "canonical_game_id": game.canonical_game_id or game.id,
+            "duration_seconds": row.duration_seconds,
+            "source": row.source.value,
+            "note": row.note,
+            "created_at": row.created_at,
+        }
+        for row, game in rows
     ]
 
 
@@ -71,7 +114,7 @@ def list_manual_playtime(
 def delete_manual_playtime(
     entry_id: int,
     guild_id: int = Query(default=0),
-    admin=Depends(require_admin),
+    admin=Depends(require_permission(PermissionCode.PLAYTIME_MANAGE_ALL)),
     db: Session = Depends(get_db),
 ):
     guild_id = resolve_guild_id(db, guild_id)
@@ -88,7 +131,7 @@ def delete_manual_playtime(
         db,
         guild_id=guild_id,
         action=AuditAction.manual_playtime_soft_deleted,
-        admin_user_id=admin.id,
+        **audit_actor_fields(admin),
         target_user_id=row.user_id,
         target_game_id=row.game_id,
         change_seconds=-int(row.duration_seconds or 0),
@@ -101,31 +144,132 @@ def delete_manual_playtime(
 
 
 @router.post("/manual-playtime")
-def add_manual_playtime(payload: ManualPlaytimeCreate, admin=Depends(require_admin), db: Session = Depends(get_db)):
+def add_manual_playtime(
+    payload: ManualPlaytimeCreate,
+    admin=Depends(require_permission(PermissionCode.PLAYTIME_MANAGE_ALL)),
+    db: Session = Depends(get_db),
+):
     guild_id = resolve_guild_id(db, payload.guild_id)
     game_id = payload.game_id
     custom_title = (payload.custom_game_title or "").strip()
-    if custom_title:
+    if payload.use_custom_game_title:
+        if not custom_title:
+            raise HTTPException(status_code=400, detail="custom_game_title is required when override is enabled")
+        if len(custom_title) > 255:
+            raise HTTPException(status_code=400, detail="custom_game_title must be 255 characters or fewer")
         game = get_or_create_game(db, custom_title, None, None)
         game_id = game.id
+    elif custom_title:
+        raise HTTPException(status_code=400, detail="custom_game_title provided without enabling override")
     if not game_id:
         raise HTTPException(status_code=400, detail="Select a game or provide a custom game title")
+
+    selected_game = db.query(Game).filter(Game.id == game_id).first()
+    if not selected_game:
+        raise HTTPException(status_code=404, detail="Game not found")
+    selected_game = resolve_canonical_game(db, selected_game)
+
     duration = to_seconds(payload.hours, payload.minutes)
     record = create_manual_playtime(
         db,
         guild_id=guild_id,
         user_id=payload.user_id,
-        game_id=game_id,
+        game_id=selected_game.id,
         duration_seconds=duration,
         source=payload.source,
         note=payload.note,
-        created_by=admin.id,
+        created_by=admin.admin_user_id,
+        actor_account_id=admin.account_id,
+        actor_type="legacy_admin" if admin.is_legacy_admin else "account",
+        actor_label=admin.username,
     )
-    return {"id": record.id}
+    return {"id": record.id, "game_id": selected_game.id, "game_display_name": selected_game.display_name}
+
+
+@router.post("/self/manual-playtime")
+def add_own_manual_playtime(
+    payload: ManualPlaytimeCreate,
+    user: AuthUser = Depends(require_permission(PermissionCode.PLAYTIME_MANAGE_OWN)),
+    db: Session = Depends(get_db),
+):
+    if user.tracked_user_id is None:
+        raise HTTPException(status_code=403, detail="Account principal required")
+    can_create = bool(get_setting(db, "users_can_create_own_manual", True))
+    if not can_create:
+        raise HTTPException(status_code=403, detail="Users cannot create manual entries")
+    guild_id = resolve_guild_id(db, payload.guild_id)
+    if payload.user_id != user.tracked_user_id:
+        raise HTTPException(status_code=403, detail="Cannot create playtime for another user")
+
+    game_id = payload.game_id
+    custom_title = (payload.custom_game_title or "").strip()
+    if payload.use_custom_game_title:
+        if not custom_title:
+            raise HTTPException(status_code=400, detail="custom_game_title is required when override is enabled")
+        if len(custom_title) > 255:
+            raise HTTPException(status_code=400, detail="custom_game_title must be 255 characters or fewer")
+        game = get_or_create_game(db, custom_title, None, None)
+        game_id = game.id
+    elif custom_title:
+        raise HTTPException(status_code=400, detail="custom_game_title provided without enabling override")
+    if not game_id:
+        raise HTTPException(status_code=400, detail="Select a game or provide a custom game title")
+
+    selected_game = db.query(Game).filter(Game.id == game_id).first()
+    if not selected_game:
+        raise HTTPException(status_code=404, detail="Game not found")
+    selected_game = resolve_canonical_game(db, selected_game)
+
+    duration = to_seconds(payload.hours, payload.minutes)
+    row = create_manual_playtime(
+        db,
+        guild_id=guild_id,
+        user_id=user.tracked_user_id,
+        game_id=selected_game.id,
+        duration_seconds=duration,
+        source=payload.source,
+        note=payload.note,
+        created_by=None,
+        actor_account_id=user.account_id,
+        actor_type="account",
+        actor_label=user.username,
+    )
+    return {"id": row.id, "game_id": selected_game.id, "game_display_name": selected_game.display_name}
+
+
+@router.delete("/self/manual-playtime/{entry_id}")
+def delete_own_manual_playtime(
+    entry_id: int,
+    guild_id: int = Query(default=0),
+    user: AuthUser = Depends(require_permission(PermissionCode.PLAYTIME_MANAGE_OWN)),
+    db: Session = Depends(get_db),
+):
+    if user.tracked_user_id is None:
+        raise HTTPException(status_code=403, detail="Account principal required")
+    can_delete = bool(get_setting(db, "users_can_delete_own_manual", True))
+    if not can_delete:
+        raise HTTPException(status_code=403, detail="Users cannot delete manual entries")
+
+    guild_id = resolve_guild_id(db, guild_id)
+    row = (
+        db.query(ManualPlaytime)
+        .filter(
+            ManualPlaytime.id == entry_id,
+            ManualPlaytime.guild_id == guild_id,
+            ManualPlaytime.user_id == user.tracked_user_id,
+            ManualPlaytime.deleted_at.is_(None),
+        )
+        .first()
+    )
+    if not row:
+        raise HTTPException(status_code=404, detail="Manual playtime entry not found")
+    row.deleted_at = datetime.now(timezone.utc)
+    db.commit()
+    return {"ok": True, "deleted_manual_playtime_id": row.id}
 
 
 @router.post("/adjustments")
-def add_adjustment(payload: AdjustmentCreate, admin=Depends(require_admin), db: Session = Depends(get_db)):
+def add_adjustment(payload: AdjustmentCreate, admin=Depends(require_permission(PermissionCode.PLAYTIME_MANAGE_ALL)), db: Session = Depends(get_db)):
     guild_id = resolve_guild_id(db, payload.guild_id)
     seconds = to_seconds(abs(payload.hours), abs(payload.minutes)) * (1 if payload.sign >= 0 else -1)
     try:
@@ -136,7 +280,10 @@ def add_adjustment(payload: AdjustmentCreate, admin=Depends(require_admin), db: 
             game_id=payload.game_id,
             adjustment_seconds=seconds,
             reason=payload.reason,
-            created_by=admin.id,
+            created_by=admin.admin_user_id,
+            actor_account_id=admin.account_id,
+            actor_type="legacy_admin" if admin.is_legacy_admin else "account",
+            actor_label=admin.username,
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -144,7 +291,7 @@ def add_adjustment(payload: AdjustmentCreate, admin=Depends(require_admin), db: 
 
 
 @router.post("/set-total")
-def set_total(payload: SetAbsoluteTotalRequest, admin=Depends(require_admin), db: Session = Depends(get_db)):
+def set_total(payload: SetAbsoluteTotalRequest, admin=Depends(require_permission(PermissionCode.PLAYTIME_MANAGE_ALL)), db: Session = Depends(get_db)):
     guild_id = resolve_guild_id(db, payload.guild_id)
     try:
         adjustment = set_absolute_total(
@@ -154,7 +301,10 @@ def set_total(payload: SetAbsoluteTotalRequest, admin=Depends(require_admin), db
             game_id=payload.game_id,
             desired_total_seconds=payload.desired_total_seconds,
             reason=payload.reason,
-            created_by=admin.id,
+            created_by=admin.admin_user_id,
+            actor_account_id=admin.account_id,
+            actor_type="legacy_admin" if admin.is_legacy_admin else "account",
+            actor_label=admin.username,
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -162,7 +312,7 @@ def set_total(payload: SetAbsoluteTotalRequest, admin=Depends(require_admin), db
 
 
 @router.post("/csv/preview")
-def csv_preview(file: UploadFile = File(...), _=Depends(require_admin)):
+def csv_preview(file: UploadFile = File(...), _=Depends(require_permission(PermissionCode.IMPORTS_MANAGE))):
     content = file.file.read()
     rows, errors = parse_csv_preview(content)
     return {
@@ -174,7 +324,7 @@ def csv_preview(file: UploadFile = File(...), _=Depends(require_admin)):
 @router.post("/csv/import")
 def csv_import(
     payload: dict,
-    admin=Depends(require_admin),
+    admin=Depends(require_permission(PermissionCode.IMPORTS_MANAGE)),
     db: Session = Depends(get_db),
 ):
     guild_id = resolve_guild_id(db, int(payload.get("guild_id") or 0))
@@ -206,15 +356,7 @@ def csv_import(
                     raise ValueError("Import aborted due to validation errors")
                 continue
 
-            if all_or_nothing:
-                normalized = normalize_game_name(row["game"])
-                game = db.query(Game).filter(Game.normalized_name == normalized).first()
-                if not game:
-                    game = Game(normalized_name=normalized, display_name=row["game"])
-                    db.add(game)
-                    db.flush()
-            else:
-                game = get_or_create_game(db, row["game"], None, None)
+            game = get_or_create_game(db, row["game"], None, None, commit=not all_or_nothing)
             create_manual_playtime(
                 db,
                 guild_id=guild_id,
@@ -223,7 +365,10 @@ def csv_import(
                 duration_seconds=to_seconds(int(row["hours"]), int(row["minutes"])),
                 source=ManualSource(row["source"]),
                 note=row.get("note"),
-                created_by=admin.id,
+                created_by=admin.admin_user_id,
+                actor_account_id=admin.account_id,
+                actor_type="legacy_admin" if admin.is_legacy_admin else "account",
+                actor_label=admin.username,
                 commit=not all_or_nothing,
             )
             imported += 1
@@ -233,7 +378,7 @@ def csv_import(
                 db,
                 guild_id=guild_id,
                 action=AuditAction.csv_import,
-                admin_user_id=admin.id,
+                **audit_actor_fields(admin),
                 target_user_id=None,
                 target_game_id=None,
                 change_seconds=None,
@@ -248,7 +393,7 @@ def csv_import(
                 db,
                 guild_id=guild_id,
                 action=AuditAction.csv_import,
-                admin_user_id=admin.id,
+                **audit_actor_fields(admin),
                 target_user_id=None,
                 target_game_id=None,
                 change_seconds=None,
@@ -270,7 +415,7 @@ def csv_import(
 @router.post("/steam/preview", response_model=SteamImportPreviewResponse)
 def steam_preview(
     payload: SteamImportPreviewRequest,
-    _=Depends(require_admin),
+    _=Depends(require_permission(PermissionCode.IMPORTS_MANAGE)),
     db: Session = Depends(get_db),
 ):
     guild_id = resolve_guild_id(db, payload.guild_id)
@@ -309,7 +454,7 @@ def steam_preview(
 @router.post("/steam/import", response_model=SteamImportResponse)
 def steam_import(
     payload: SteamImportRequest,
-    admin=Depends(require_admin),
+    admin=Depends(require_permission(PermissionCode.IMPORTS_MANAGE)),
     db: Session = Depends(get_db),
 ):
     guild_id = resolve_guild_id(db, payload.guild_id)
@@ -358,7 +503,10 @@ def steam_import(
                 duration_seconds=game.playtime_minutes * 60,
                 source=ManualSource.imported,
                 note=note,
-                created_by=admin.id,
+                created_by=admin.admin_user_id,
+                actor_account_id=admin.account_id,
+                actor_type="legacy_admin" if admin.is_legacy_admin else "account",
+                actor_label=admin.username,
                 commit=False,
             )
             imported += 1
@@ -367,7 +515,7 @@ def steam_import(
             db,
             guild_id=guild_id,
             action=AuditAction.csv_import,
-            admin_user_id=admin.id,
+            **audit_actor_fields(admin),
             target_user_id=payload.user_id,
             target_game_id=None,
             change_seconds=None,

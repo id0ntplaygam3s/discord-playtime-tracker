@@ -1,7 +1,33 @@
 import client from './client';
+import { AdminUserAccountRow, MeResponse } from '../types';
 
-export async function getMe(): Promise<{ username: string; role: 'admin' | 'viewer' }> {
+export async function getMe(): Promise<MeResponse> {
   const { data } = await client.get('/auth/me');
+  return data;
+}
+
+export async function listRegistrations() {
+  const { data } = await client.get('/auth/registrations');
+  return data;
+}
+
+export async function approveRegistration(accountId: number) {
+  const { data } = await client.post(`/auth/registrations/${accountId}/approve`);
+  return data;
+}
+
+export async function rejectRegistration(accountId: number) {
+  const { data } = await client.post(`/auth/registrations/${accountId}/reject`);
+  return data;
+}
+
+export async function listPasswordResetRequests() {
+  const { data } = await client.get('/auth/password-resets');
+  return data;
+}
+
+export async function approvePasswordResetRequest(requestId: number) {
+  const { data } = await client.post(`/auth/password-resets/${requestId}/approve`);
   return data;
 }
 
@@ -9,13 +35,15 @@ export async function addManualPlaytime(payload: {
   guild_id: number;
   user_id: number;
   game_id?: number;
+  use_custom_game_title?: boolean;
   custom_game_title?: string;
   hours: number;
   minutes: number;
   source: 'historical' | 'imported' | 'correction';
   note?: string;
 }) {
-  return client.post('/management/manual-playtime', payload);
+  const { data } = await client.post('/management/manual-playtime', payload);
+  return data;
 }
 
 export async function listManualPlaytime(guildId: number, userId?: number, gameId?: number, limit = 50) {
@@ -30,10 +58,43 @@ export async function listManualPlaytime(guildId: number, userId?: number, gameI
   return data;
 }
 
+export async function listOwnManualPlaytime(guildId: number, gameId?: number, limit = 50) {
+  const { data } = await client.get('/management/self/manual-playtime', {
+    params: {
+      guild_id: guildId,
+      game_id: gameId || undefined,
+      limit,
+    },
+  });
+  return data;
+}
+
 export async function deleteManualPlaytime(guildId: number, entryId: number) {
   const { data } = await client.delete(`/management/manual-playtime/${entryId}`, {
     params: { guild_id: guildId },
   });
+  return data;
+}
+
+export async function deleteOwnManualPlaytime(guildId: number, entryId: number) {
+  const { data } = await client.delete(`/management/self/manual-playtime/${entryId}`, {
+    params: { guild_id: guildId },
+  });
+  return data;
+}
+
+export async function addOwnManualPlaytime(payload: {
+  guild_id: number;
+  user_id: number;
+  game_id?: number;
+  use_custom_game_title?: boolean;
+  custom_game_title?: string;
+  hours: number;
+  minutes: number;
+  source: 'historical' | 'imported' | 'correction';
+  note?: string;
+}) {
+  const { data } = await client.post('/management/self/manual-playtime', payload);
   return data;
 }
 
@@ -107,6 +168,61 @@ export async function getSystemStatus() {
 
 export async function listUsers(guildId: number) {
   const { data } = await client.get('/users', { params: { guild_id: guildId, page: 1, page_size: 100 } });
+  return data;
+}
+
+export async function listAdminUsers(guildId: number): Promise<AdminUserAccountRow[]> {
+  const { data } = await client.get('/admin/users', { params: { guild_id: guildId } });
+  return data;
+}
+
+export async function setAccountRole(accountId: number, role: 'guest' | 'user' | 'admin') {
+  const { data } = await client.post(`/admin/users/${accountId}/role`, { role });
+  return data;
+}
+
+export async function setAccountStatus(accountId: number, status: 'pending' | 'active' | 'locked' | 'disabled') {
+  const { data } = await client.post(`/admin/users/${accountId}/status`, { status });
+  return data;
+}
+
+export async function unlockAccount(accountId: number) {
+  const { data } = await client.post(`/admin/users/${accountId}/unlock`);
+  return data;
+}
+
+export async function adminResetPassword(accountId: number, newPassword: string) {
+  const { data } = await client.post(`/admin/users/${accountId}/reset-password`, { new_password: newPassword });
+  return data;
+}
+
+export async function getPermissions() {
+  const { data } = await client.get('/admin/permissions');
+  return data;
+}
+
+export async function updateRolePermissions(roleName: 'guest' | 'user' | 'admin', permissions: Record<string, boolean>) {
+  const { data } = await client.post(`/admin/permissions/roles/${roleName}`, { permissions });
+  return data;
+}
+
+export async function getUserPermissionOverrides(accountId: number) {
+  const { data } = await client.get(`/admin/permissions/users/${accountId}`);
+  return data;
+}
+
+export async function setUserPermissionOverride(accountId: number, permission: string, mode: 'inherit' | 'allow' | 'deny') {
+  const { data } = await client.post(`/admin/permissions/users/${accountId}`, { permission, mode });
+  return data;
+}
+
+export async function getRuntimeSettings() {
+  const { data } = await client.get('/admin/settings');
+  return data;
+}
+
+export async function updateRuntimeSettings(payload: Record<string, unknown>) {
+  const { data } = await client.post('/admin/settings', payload);
   return data;
 }
 

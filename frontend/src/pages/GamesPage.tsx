@@ -1,7 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { getGameUsers, getTopGames } from '../api/trackerApi';
+import DateRangeTabs from '../components/DateRangeTabs';
 import TopUsersChart from '../charts/TopUsersChart';
+import { DateRangeKey } from '../types';
+import { selectedGameRangeOptions } from '../utils/dateRanges';
 import { formatDuration } from '../utils/time';
 
 export default function GamesPage() {
@@ -9,6 +12,9 @@ export default function GamesPage() {
   const [rows, setRows] = useState<any[]>([]);
   const [selectedGameId, setSelectedGameId] = useState<number>(0);
   const [selectedUsers, setSelectedUsers] = useState<any[]>([]);
+  const [selectedGameRange, setSelectedGameRange] = useState<DateRangeKey>('all');
+  const [selectedFrom, setSelectedFrom] = useState('');
+  const [selectedTo, setSelectedTo] = useState('');
   const [showValues, setShowValues] = useState(true);
   const [loadingBreakdown, setLoadingBreakdown] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -37,7 +43,17 @@ export default function GamesPage() {
       }
       setLoadingBreakdown(true);
       try {
-        const users = await getGameUsers(guildId, selectedGameId);
+        const users = await getGameUsers(
+          guildId,
+          selectedGameId,
+          selectedGameRange,
+          selectedGameRange === 'custom'
+            ? {
+                from: selectedFrom ? new Date(`${selectedFrom}T00:00:00Z`).toISOString() : undefined,
+                to: selectedTo ? new Date(`${selectedTo}T23:59:59Z`).toISOString() : undefined,
+              }
+            : undefined,
+        );
         if (!cancelled) setSelectedUsers(users.slice(0, 12));
       } catch {
         if (!cancelled) setSelectedUsers([]);
@@ -50,7 +66,7 @@ export default function GamesPage() {
     return () => {
       cancelled = true;
     };
-  }, [guildId, selectedGameId]);
+  }, [guildId, selectedGameId, selectedGameRange, selectedFrom, selectedTo]);
 
   return (
     <div className="page-grid">
@@ -94,12 +110,27 @@ export default function GamesPage() {
           </div>
         </div>
 
-        <div>
+        <div className="panel">
+          <h3>{selectedGame ? `Most Active In ${selectedGame.name}` : 'Select a game'}</h3>
+          <DateRangeTabs
+            options={selectedGameRangeOptions}
+            value={selectedGameRange}
+            onChange={setSelectedGameRange}
+            ariaLabel="Game page activity range"
+          />
+          {selectedGameRange === 'custom' && (
+            <div className="form-grid-3" style={{ marginBottom: 8 }}>
+              <input type="date" value={selectedFrom} onChange={(e) => setSelectedFrom(e.target.value)} />
+              <input type="date" value={selectedTo} onChange={(e) => setSelectedTo(e.target.value)} />
+              <div className="subtle">Custom range applies to this game only.</div>
+            </div>
+          )}
           <TopUsersChart
             data={selectedUsers}
-            title={selectedGame ? `Most Active In ${selectedGame.name}` : 'Select a game'}
-            height={380}
+            title=""
+            height={320}
             showValues={showValues}
+            frameless
           />
           {loadingBreakdown && <div className="subtle" style={{ marginTop: 8 }}>Loading player breakdown...</div>}
         </div>

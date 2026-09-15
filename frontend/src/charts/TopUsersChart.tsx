@@ -12,6 +12,7 @@ interface TopUsersChartProps {
   showValues?: boolean;
   barColor?: string;
   rowColorsByName?: Record<string, string>;
+  frameless?: boolean;
 }
 
 export default function TopUsersChart({
@@ -21,6 +22,7 @@ export default function TopUsersChart({
   showValues = false,
   barColor = '#22D3EE',
   rowColorsByName,
+  frameless = false,
 }: TopUsersChartProps) {
   const yAxisWidth = Math.min(
     280,
@@ -30,9 +32,9 @@ export default function TopUsersChart({
     )
   );
 
-  return (
-    <div className="panel">
-      <h3>{title}</h3>
+  const chart = (
+    <>
+      {title ? <h3>{title}</h3> : null}
       <ResponsiveContainer width="100%" height={height}>
         <BarChart data={data} layout="vertical" margin={{ top: 8, right: 24, left: 16, bottom: 8 }}>
           <XAxis type="number" hide />
@@ -52,6 +54,9 @@ export default function TopUsersChart({
           </Bar>
         </BarChart>
       </ResponsiveContainer>
-    </div>
+    </>
   );
+
+  if (frameless) return chart;
+  return <div className="panel">{chart}</div>;
 }

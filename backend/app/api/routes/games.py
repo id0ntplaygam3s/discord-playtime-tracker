@@ -1,13 +1,20 @@
+from datetime import datetime
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import desc, func
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_current_user, require_admin
+from app.api.deps import AuthUser, audit_actor_fields, require_admin, require_permission
+from app.core.permissions import PermissionCode
+from app.core.config import get_settings
 from app.api.guilds import resolve_guild_id
 from app.db.session import get_db
-from app.models import ActivitySession, AuditAction, Game, GameAlias, ManualPlaytime, PlaytimeAdjustment, User
+from app.models import ActivitySession, AuditAction, Game, GameAlias, GameMergeSuggestionState, ManualPlaytime, MergeSuggestionStatus, PlaytimeAdjustment, User
+from app.services.date_ranges import resolve_range
+from app.services import stats_service
 from app.services.session_service import write_audit_log
 from app.services.normalization import normalize_game_name
+from app.services.game_identity_service import add_alias_if_missing, resolve_canonical_game, suggest_merge_pairs
 
 router = APIRouter(prefix="/games", tags=["games"])
 
@@ -19,11 +26,22 @@ def _duration_seconds_expr(db: Session):
 
 
 def _game_has_guild_data(db: Session, guild_id: int, game_id: int) -> bool:
+    resolved_id = game_id
+    game = db.query(Game).filter(Game.id == game_id).first()
+    if game is not None:
+        resolved_id = resolve_canonical_game(db, game).id
     return bool(
-        db.query(ActivitySession.id).filter(ActivitySession.guild_id == guild_id, ActivitySession.game_id == game_id).first()
-        or db.query(ManualPlaytime.id).filter(ManualPlaytime.guild_id == guild_id, ManualPlaytime.game_id == game_id).first()
+        db.query(ActivitySession.id)
+        .join(Game, Game.id == ActivitySession.game_id)
+        .filter(ActivitySession.guild_id == guild_id, func.coalesce(Game.canonical_game_id, Game.id) == resolved_id)
+        .first()
+        or db.query(ManualPlaytime.id)
+        .join(Game, Game.id == ManualPlaytime.game_id)
+        .filter(ManualPlaytime.guild_id == guild_id, func.coalesce(Game.canonical_game_id, Game.id) == resolved_id)
+        .first()
         or db.query(PlaytimeAdjustment.id)
-        .filter(PlaytimeAdjustment.guild_id == guild_id, PlaytimeAdjustment.game_id == game_id)
+        .join(Game, Game.id == PlaytimeAdjustment.game_id)
+        .filter(PlaytimeAdjustment.guild_id == guild_id, func.coalesce(Game.canonical_game_id, Game.id) == resolved_id)
         .first()
     )
 
@@ -33,36 +51,27 @@ def list_games(
     guild_id: int = Query(default=0),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100),
-    _: object = Depends(get_current_user),
+    _: object = Depends(require_permission(PermissionCode.GAMES_VIEW)),
     db: Session = Depends(get_db),
 ):
     guild_id = resolve_guild_id(db, guild_id)
+    ranked = stats_service.ranked_games(db, guild_id, source="combined", limit=5000)
+    ranked_ids = [int(item["id"]) for item in ranked]
+    if not ranked_ids:
+        return []
+
+    rows = db.query(Game).filter(Game.id.in_(ranked_ids), Game.is_hidden.is_(False)).all()
+    by_id = {row.id: row for row in rows}
+    ordered = [by_id[game_id] for game_id in ranked_ids if game_id in by_id]
     offset = (page - 1) * page_size
-    rows = (
-        db.query(Game)
-        .filter(
-            Game.is_hidden.is_(False),
-            (db.query(ActivitySession.id).filter(ActivitySession.guild_id == guild_id, ActivitySession.game_id == Game.id).exists())
-            | (db.query(ManualPlaytime.id).filter(ManualPlaytime.guild_id == guild_id, ManualPlaytime.game_id == Game.id).exists())
-            | (
-                db.query(PlaytimeAdjustment.id)
-                .filter(PlaytimeAdjustment.guild_id == guild_id, PlaytimeAdjustment.game_id == Game.id)
-                .exists()
-            )
-        )
-        .order_by(Game.display_name.asc())
-        .offset(offset)
-        .limit(page_size)
-        .all()
-    )
-    return rows
+    return ordered[offset : offset + page_size]
 
 
 @router.get("/{game_id}")
 def game_profile(
     game_id: int,
     guild_id: int = Query(default=0),
-    _: object = Depends(get_current_user),
+    _: object = Depends(require_permission(PermissionCode.GAMES_VIEW)),
     db: Session = Depends(get_db),
 ):
     guild_id = resolve_guild_id(db, guild_id)
@@ -73,32 +82,37 @@ def game_profile(
     has_guild_data = _game_has_guild_data(db, guild_id, game_id)
     if not has_guild_data:
         raise HTTPException(status_code=404, detail="Game not found")
+    resolved_id = resolve_canonical_game(db, game).id
 
     automatic = (
         db.query(func.coalesce(func.sum(func.extract("epoch", ActivitySession.ended_at - ActivitySession.started_at)), 0))
-        .filter(ActivitySession.guild_id == guild_id, ActivitySession.game_id == game.id, ActivitySession.ended_at.is_not(None))
+        .join(Game, Game.id == ActivitySession.game_id)
+        .filter(ActivitySession.guild_id == guild_id, func.coalesce(Game.canonical_game_id, Game.id) == resolved_id, ActivitySession.ended_at.is_not(None))
         .scalar()
     )
     historical = (
         db.query(func.coalesce(func.sum(ManualPlaytime.duration_seconds), 0))
-        .filter(ManualPlaytime.guild_id == guild_id, ManualPlaytime.game_id == game.id, ManualPlaytime.deleted_at.is_(None))
+        .join(Game, Game.id == ManualPlaytime.game_id)
+        .filter(ManualPlaytime.guild_id == guild_id, func.coalesce(Game.canonical_game_id, Game.id) == resolved_id, ManualPlaytime.deleted_at.is_(None))
         .scalar()
     )
     adjustments = (
         db.query(func.coalesce(func.sum(PlaytimeAdjustment.adjustment_seconds), 0))
-        .filter(PlaytimeAdjustment.guild_id == guild_id, PlaytimeAdjustment.game_id == game.id)
+        .join(Game, Game.id == PlaytimeAdjustment.game_id)
+        .filter(PlaytimeAdjustment.guild_id == guild_id, func.coalesce(Game.canonical_game_id, Game.id) == resolved_id)
         .scalar()
     )
     unique_players = (
         db.query(func.count(func.distinct(ActivitySession.user_id)))
-        .filter(ActivitySession.guild_id == guild_id, ActivitySession.game_id == game.id)
+        .join(Game, Game.id == ActivitySession.game_id)
+        .filter(ActivitySession.guild_id == guild_id, func.coalesce(Game.canonical_game_id, Game.id) == resolved_id)
         .scalar()
         or 0
     )
 
     return {
-        "id": game.id,
-        "display_name": game.display_name,
+        "id": resolved_id,
+        "display_name": resolve_canonical_game(db, game).display_name,
         "icon_url": game.icon_url,
         "automatic_seconds": int(automatic or 0),
         "historical_seconds": int(historical or 0),
@@ -112,60 +126,29 @@ def game_profile(
 def game_users(
     game_id: int,
     guild_id: int = Query(default=0),
-    _: object = Depends(get_current_user),
+    range_key: str | None = Query(default=None, alias="range"),
+    from_dt: datetime | None = Query(default=None, alias="from"),
+    to_dt: datetime | None = Query(default=None, alias="to"),
+    _: object = Depends(require_permission(PermissionCode.PLAYTIME_VIEW)),
     db: Session = Depends(get_db),
 ):
     guild_id = resolve_guild_id(db, guild_id)
     has_guild_data = _game_has_guild_data(db, guild_id, game_id)
     if not has_guild_data:
         raise HTTPException(status_code=404, detail="Game not found")
-
-    auto_q = (
-        db.query(
-            ActivitySession.user_id.label("user_id"),
-            func.coalesce(func.sum(_duration_seconds_expr(db)), 0).label("auto_seconds"),
-        )
-        .filter(ActivitySession.guild_id == guild_id, ActivitySession.game_id == game_id, ActivitySession.ended_at.is_not(None))
-        .group_by(ActivitySession.user_id)
-        .subquery()
+    resolved_game = resolve_canonical_game(db, db.query(Game).filter(Game.id == game_id).first())
+    try:
+        resolved = resolve_range(range_key, timezone_name=get_settings().timezone, custom_from=from_dt, custom_to=to_dt)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return stats_service.ranked_users_for_game(
+        db,
+        guild_id,
+        resolved_game.id,
+        limit=100,
+        from_dt=resolved.from_dt,
+        to_dt=resolved.to_dt,
     )
-    hist_q = (
-        db.query(
-            ManualPlaytime.user_id.label("user_id"),
-            func.coalesce(func.sum(ManualPlaytime.duration_seconds), 0).label("hist_seconds"),
-        )
-        .filter(ManualPlaytime.guild_id == guild_id, ManualPlaytime.game_id == game_id, ManualPlaytime.deleted_at.is_(None))
-        .group_by(ManualPlaytime.user_id)
-        .subquery()
-    )
-    adj_q = (
-        db.query(
-            PlaytimeAdjustment.user_id.label("user_id"),
-            func.coalesce(func.sum(PlaytimeAdjustment.adjustment_seconds), 0).label("adj_seconds"),
-        )
-        .filter(PlaytimeAdjustment.guild_id == guild_id, PlaytimeAdjustment.game_id == game_id)
-        .group_by(PlaytimeAdjustment.user_id)
-        .subquery()
-    )
-
-    rows = (
-        db.query(
-            User.id,
-            User.display_name,
-            (
-                func.coalesce(auto_q.c.auto_seconds, 0)
-                + func.coalesce(hist_q.c.hist_seconds, 0)
-                + func.coalesce(adj_q.c.adj_seconds, 0)
-            ).label("seconds"),
-        )
-        .join(auto_q, auto_q.c.user_id == User.id, isouter=True)
-        .join(hist_q, hist_q.c.user_id == User.id, isouter=True)
-        .join(adj_q, adj_q.c.user_id == User.id, isouter=True)
-        .filter(User.guild_id == guild_id, (auto_q.c.user_id.is_not(None)) | (hist_q.c.user_id.is_not(None)) | (adj_q.c.user_id.is_not(None)))
-        .order_by(desc("seconds"))
-        .all()
-    )
-    return [{"id": r[0], "name": r[1], "total_seconds": max(0, int(r[2] or 0))} for r in rows]
 
 
 @router.get("/{game_id}/sessions")
@@ -174,7 +157,7 @@ def game_sessions(
     guild_id: int = Query(default=0),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100),
-    _: object = Depends(get_current_user),
+    _: object = Depends(require_permission(PermissionCode.PLAYTIME_VIEW)),
     db: Session = Depends(get_db),
 ):
     guild_id = resolve_guild_id(db, guild_id)
@@ -217,12 +200,14 @@ def rename_game(
 
     old_name = game.display_name
     game.display_name = payload.get("display_name", old_name)
+    if old_name != game.display_name:
+        add_alias_if_missing(db, game.id, old_name)
     db.commit()
     write_audit_log(
         db,
         guild_id=guild_id,
         action=AuditAction.game_renamed,
-        admin_user_id=admin.id,
+        **audit_actor_fields(admin),
         target_user_id=None,
         target_game_id=game.id,
         change_seconds=None,
@@ -235,7 +220,7 @@ def rename_game(
 def list_game_aliases(
     game_id: int,
     guild_id: int = Query(default=0),
-    _: object = Depends(get_current_user),
+    _: object = Depends(require_permission(PermissionCode.GAMES_VIEW)),
     db: Session = Depends(get_db),
 ):
     guild_id = resolve_guild_id(db, guild_id)
@@ -269,7 +254,7 @@ def add_game_alias(
     if existing and existing.game_id == game_id:
         return {"id": existing.id, "alias": existing.alias}
 
-    row = GameAlias(game_id=game_id, alias=alias)
+    row = GameAlias(game_id=game_id, alias=alias, normalized_alias=normalize_game_name(alias))
     db.add(row)
     db.commit()
     db.refresh(row)
@@ -278,7 +263,7 @@ def add_game_alias(
         db,
         guild_id=guild_id,
         action=AuditAction.game_renamed,
-        admin_user_id=admin.id,
+        **audit_actor_fields(admin),
         target_user_id=None,
         target_game_id=game_id,
         change_seconds=None,
@@ -308,30 +293,40 @@ def merge_games(
     if not _game_has_guild_data(db, guild_id, source_game_id):
         raise HTTPException(status_code=404, detail="Source game not found in guild")
 
-    if source.display_name != target.display_name:
-        existing_alias = db.query(GameAlias).filter(GameAlias.alias == source.display_name).first()
-        if existing_alias is None:
-            db.add(GameAlias(game_id=target_game_id, alias=source.display_name))
+    canonical_source = resolve_canonical_game(db, source)
+    canonical_target = resolve_canonical_game(db, target)
+    if canonical_source.id == canonical_target.id:
+        raise HTTPException(status_code=409, detail="Games already resolve to the same canonical game")
 
-    for alias in db.query(GameAlias).filter(GameAlias.game_id == source_game_id).all():
-        conflict = db.query(GameAlias).filter(GameAlias.alias == alias.alias).first()
-        if conflict is None or conflict.game_id == source_game_id:
-            alias.game_id = target_game_id
-
-    db.query(ActivitySession).filter(ActivitySession.guild_id == guild_id, ActivitySession.game_id == source_game_id).update(
-        {ActivitySession.game_id: target_game_id}, synchronize_session=False
-    )
-    db.query(ManualPlaytime).filter(ManualPlaytime.guild_id == guild_id, ManualPlaytime.game_id == source_game_id).update(
-        {ManualPlaytime.game_id: target_game_id}, synchronize_session=False
-    )
-    db.query(PlaytimeAdjustment).filter(
-        PlaytimeAdjustment.guild_id == guild_id,
-        PlaytimeAdjustment.game_id == source_game_id,
-    ).update({PlaytimeAdjustment.game_id: target_game_id}, synchronize_session=False)
-
+    source.canonical_game_id = canonical_target.id
     source.is_hidden = True
-    source.display_name = f"Merged into {target.display_name}"
-    source.normalized_name = normalize_game_name(f"merged-source-{source.id}-{source.normalized_name}")
+    add_alias_if_missing(db, canonical_target.id, source.display_name)
+    for alias in db.query(GameAlias).filter(GameAlias.game_id == source.id).all():
+        add_alias_if_missing(db, canonical_target.id, alias.alias)
+        alias.game_id = canonical_target.id
+
+    existing_state = (
+        db.query(GameMergeSuggestionState)
+        .filter(
+            GameMergeSuggestionState.source_game_id == source.id,
+            GameMergeSuggestionState.target_game_id == canonical_target.id,
+        )
+        .first()
+    )
+    if existing_state is None:
+        db.add(
+            GameMergeSuggestionState(
+                source_game_id=source.id,
+                target_game_id=canonical_target.id,
+                status=MergeSuggestionStatus.accepted,
+                decided_by_admin_user_id=admin.admin_user_id,
+                decided_by_account_id=admin.account_id,
+            )
+        )
+    else:
+        existing_state.status = MergeSuggestionStatus.accepted
+        existing_state.decided_by_admin_user_id = admin.admin_user_id
+        existing_state.decided_by_account_id = admin.account_id
 
     db.commit()
 
@@ -339,11 +334,113 @@ def merge_games(
         db,
         guild_id=guild_id,
         action=AuditAction.game_merged,
-        admin_user_id=admin.id,
+        **audit_actor_fields(admin),
+        target_user_id=None,
+        target_game_id=canonical_target.id,
+        change_seconds=None,
+        reason=reason,
+        metadata_json={"source_game_id": source.id, "target_game_id": canonical_target.id},
+    )
+    return {"ok": True, "source_game_id": source.id, "target_game_id": canonical_target.id}
+
+
+@router.post("/{game_id}/unmerge")
+def unmerge_game(
+    game_id: int,
+    payload: dict,
+    admin=Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    guild_id = resolve_guild_id(db, int(payload.get("guild_id") or 0))
+    reason = (payload.get("reason") or "Unmerged game").strip()
+
+    game = db.query(Game).filter(Game.id == game_id).first()
+    if game is None:
+        raise HTTPException(status_code=404, detail="Game not found")
+    if game.canonical_game_id is None:
+        raise HTTPException(status_code=409, detail="Game is not currently merged")
+
+    previous_target = game.canonical_game_id
+    game.canonical_game_id = None
+    game.is_hidden = False
+    db.commit()
+
+    write_audit_log(
+        db,
+        guild_id=guild_id,
+        action=AuditAction.game_unmerged,
+        **audit_actor_fields(admin),
+        target_user_id=None,
+        target_game_id=game.id,
+        change_seconds=None,
+        reason=reason,
+        metadata_json={"previous_target_game_id": previous_target},
+    )
+    return {"ok": True, "game_id": game.id}
+
+
+@router.get("/meta/merge-suggestions")
+def list_merge_suggestions(
+    limit: int = Query(default=50, ge=1, le=200),
+    confidence: str | None = Query(default=None),
+    _: object = Depends(require_permission(PermissionCode.PERMISSIONS_MANAGE)),
+    db: Session = Depends(get_db),
+):
+    rows = suggest_merge_pairs(db, limit=limit)
+    if confidence:
+        rows = [row for row in rows if row["confidence"] == confidence]
+    return rows
+
+
+@router.post("/meta/merge-suggestions/{source_game_id}/{target_game_id}/ignore")
+def ignore_merge_suggestion(
+    source_game_id: int,
+    target_game_id: int,
+    payload: dict,
+    admin=Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    guild_id = resolve_guild_id(db, int(payload.get("guild_id") or 0))
+    if source_game_id == target_game_id:
+        raise HTTPException(status_code=400, detail="source and target must differ")
+
+    source = db.query(Game).filter(Game.id == source_game_id).first()
+    target = db.query(Game).filter(Game.id == target_game_id).first()
+    if source is None or target is None:
+        raise HTTPException(status_code=404, detail="Source or target game not found")
+
+    row = (
+        db.query(GameMergeSuggestionState)
+        .filter(
+            GameMergeSuggestionState.source_game_id == source_game_id,
+            GameMergeSuggestionState.target_game_id == target_game_id,
+        )
+        .first()
+    )
+    if row is None:
+        row = GameMergeSuggestionState(
+            source_game_id=source_game_id,
+            target_game_id=target_game_id,
+            status=MergeSuggestionStatus.ignored,
+            decided_by_admin_user_id=admin.admin_user_id,
+            decided_by_account_id=admin.account_id,
+        )
+        db.add(row)
+    else:
+        row.status = MergeSuggestionStatus.ignored
+        row.decided_by_admin_user_id = admin.admin_user_id
+        row.decided_by_account_id = admin.account_id
+    db.commit()
+
+    write_audit_log(
+        db,
+        guild_id=guild_id,
+        action=AuditAction.merge_suggestion_ignored,
+        **audit_actor_fields(admin),
         target_user_id=None,
         target_game_id=target_game_id,
         change_seconds=None,
-        reason=reason,
+        reason="Merge suggestion ignored",
         metadata_json={"source_game_id": source_game_id, "target_game_id": target_game_id},
     )
-    return {"ok": True, "source_game_id": source_game_id, "target_game_id": target_game_id}
+    return {"ok": True}

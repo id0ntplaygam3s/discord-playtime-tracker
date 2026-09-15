@@ -4,9 +4,12 @@ import ActivityLineChart from '../charts/ActivityLineChart';
 import TopGamesChart from '../charts/TopGamesChart';
 import TopUsersChart from '../charts/TopUsersChart';
 import CurrentSessions from '../components/CurrentSessions';
+import DateRangeTabs from '../components/DateRangeTabs';
 import StatCard from '../components/StatCard';
 import { useAppPreferences } from '../context/AppPreferencesContext';
 import { useDashboardData } from '../hooks/useDashboardData';
+import { DateRangeKey } from '../types';
+import { activityRangeOptions, allGamesRangeOptions, selectedGameRangeOptions } from '../utils/dateRanges';
 import { formatDuration } from '../utils/time';
 
 export default function DashboardPage() {
@@ -14,6 +17,15 @@ export default function DashboardPage() {
   const { autoRefreshEnabled } = useAppPreferences();
   const [selectedGameId, setSelectedGameId] = useState<number>(0);
   const [selectedGameUsers, setSelectedGameUsers] = useState<any[]>([]);
+  const [selectedGameActivityRange, setSelectedGameActivityRange] = useState<DateRangeKey>('all');
+  const [allGamesActivityRange, setAllGamesActivityRange] = useState<DateRangeKey>('30d');
+  const [activityOverTimeRange, setActivityOverTimeRange] = useState<DateRangeKey>('30d');
+  const [selectedFrom, setSelectedFrom] = useState('');
+  const [selectedTo, setSelectedTo] = useState('');
+  const [allGamesFrom, setAllGamesFrom] = useState('');
+  const [allGamesTo, setAllGamesTo] = useState('');
+  const [activityFrom, setActivityFrom] = useState('');
+  const [activityTo, setActivityTo] = useState('');
   const [selectedGameLoading, setSelectedGameLoading] = useState(false);
   const [selectedGameError, setSelectedGameError] = useState<string | null>(null);
   const [splitByPlayer, setSplitByPlayer] = useState(false);
@@ -22,7 +34,14 @@ export default function DashboardPage() {
   const [splitRows, setSplitRows] = useState<Array<Record<string, string | number>>>([]);
   const [splitPlayers, setSplitPlayers] = useState<Array<{ key: string; name: string; color: string }>>([]);
   const [splitError, setSplitError] = useState<string | null>(null);
-  const { overview, games, users, daily, active, loading, error } = useDashboardData(guildId, autoRefreshEnabled);
+  const { overview, games, users, daily, active, loading, error } = useDashboardData(
+    guildId,
+    autoRefreshEnabled,
+    allGamesActivityRange,
+    activityOverTimeRange,
+    { from: allGamesFrom ? new Date(`${allGamesFrom}T00:00:00Z`).toISOString() : undefined, to: allGamesTo ? new Date(`${allGamesTo}T23:59:59Z`).toISOString() : undefined },
+    { from: activityFrom ? new Date(`${activityFrom}T00:00:00Z`).toISOString() : undefined, to: activityTo ? new Date(`${activityTo}T23:59:59Z`).toISOString() : undefined },
+  );
 
   const palette = ['#22d3ee', '#f97316', '#4ade80', '#f43f5e', '#facc15', '#a78bfa', '#14b8a6', '#60a5fa'];
 
@@ -62,7 +81,17 @@ export default function DashboardPage() {
       setSelectedGameLoading(true);
       setSelectedGameError(null);
       try {
-        const rows = await getGameUsers(guildId, selectedGameId);
+        const rows = await getGameUsers(
+          guildId,
+          selectedGameId,
+          selectedGameActivityRange,
+          selectedGameActivityRange === 'custom'
+            ? {
+                from: selectedFrom ? new Date(`${selectedFrom}T00:00:00Z`).toISOString() : undefined,
+                to: selectedTo ? new Date(`${selectedTo}T23:59:59Z`).toISOString() : undefined,
+              }
+            : undefined,
+        );
         if (!cancelled) setSelectedGameUsers(rows.slice(0, 12));
       } catch (err: any) {
         if (!cancelled) {
@@ -77,7 +106,7 @@ export default function DashboardPage() {
     return () => {
       cancelled = true;
     };
-  }, [guildId, selectedGameId]);
+  }, [guildId, selectedGameId, selectedGameActivityRange, selectedFrom, selectedTo]);
 
   useEffect(() => {
     let cancelled = false;
@@ -194,14 +223,31 @@ export default function DashboardPage() {
           showValues={showValues}
           title={splitByPlayer ? 'Most Played Games (Split by Player)' : 'Most Played Games'}
         />
-        <TopUsersChart
-          data={selectedGameUsers}
-          title={selectedGame ? `Most Active In ${selectedGame.name}` : 'Select a game to view player split'}
-          height={320}
-          showValues={showValues}
-          barColor="#22D3EE"
-          rowColorsByName={selectedGameColors}
-        />
+        <div className="panel">
+          <h3>{selectedGame ? `Most Active In ${selectedGame.name}` : 'Select a game to view player split'}</h3>
+          <DateRangeTabs
+            options={selectedGameRangeOptions}
+            value={selectedGameActivityRange}
+            onChange={setSelectedGameActivityRange}
+            ariaLabel="Selected game activity range"
+          />
+          {selectedGameActivityRange === 'custom' && (
+            <div className="form-grid-3" style={{ marginTop: 8 }}>
+              <input type="date" value={selectedFrom} onChange={(e) => setSelectedFrom(e.target.value)} />
+              <input type="date" value={selectedTo} onChange={(e) => setSelectedTo(e.target.value)} />
+              <div className="subtle">Custom range applies to selected game breakdown.</div>
+            </div>
+          )}
+          <TopUsersChart
+            data={selectedGameUsers}
+            title=""
+            height={270}
+            showValues={showValues}
+            barColor="#22D3EE"
+            rowColorsByName={selectedGameColors}
+            frameless
+          />
+        </div>
       </section>
 
       {selectedGameLoading && <div className="panel">Loading selected game breakdown...</div>}
@@ -209,9 +255,41 @@ export default function DashboardPage() {
       {splitError && <div className="error-box">{splitError}</div>}
 
       <section className="two-col dashboard-bottom">
-        <TopUsersChart data={users} title="Most Active Players (All Games)" height={320} showValues={showValues} />
+        <div className="panel">
+          <h3>Most Active Players (All Games)</h3>
+          <DateRangeTabs
+            options={allGamesRangeOptions}
+            value={allGamesActivityRange}
+            onChange={setAllGamesActivityRange}
+            ariaLabel="All games activity range"
+          />
+          {allGamesActivityRange === 'custom' && (
+            <div className="form-grid-3" style={{ marginBottom: 8 }}>
+              <input type="date" value={allGamesFrom} onChange={(e) => setAllGamesFrom(e.target.value)} />
+              <input type="date" value={allGamesTo} onChange={(e) => setAllGamesTo(e.target.value)} />
+              <div className="subtle">Custom range applies to all-players ranking.</div>
+            </div>
+          )}
+          <TopUsersChart data={users} title="" height={270} showValues={showValues} frameless />
+        </div>
         <div className="split-stack">
-          <ActivityLineChart data={daily} title="Activity Over Time" height={160} />
+          <div className="panel">
+            <h3>Activity Over Time</h3>
+            <DateRangeTabs
+              options={activityRangeOptions}
+              value={activityOverTimeRange}
+              onChange={setActivityOverTimeRange}
+              ariaLabel="Activity over time range"
+            />
+            {activityOverTimeRange === 'custom' && (
+              <div className="form-grid-3" style={{ marginBottom: 8 }}>
+                <input type="date" value={activityFrom} onChange={(e) => setActivityFrom(e.target.value)} />
+                <input type="date" value={activityTo} onChange={(e) => setActivityTo(e.target.value)} />
+                <div className="subtle">Custom range applies to the timeline chart.</div>
+              </div>
+            )}
+            <ActivityLineChart data={daily} title="" height={120} frameless />
+          </div>
           <CurrentSessions sessions={active} title="Currently Playing" compact />
         </div>
       </section>

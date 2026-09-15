@@ -1,24 +1,29 @@
 import { NavLink, Outlet } from 'react-router-dom';
+import { MeResponse } from '../types';
 
-const baseNavItems = [
-  ['/', 'Dashboard'],
-  ['/games', 'Games'],
-  ['/games-graph', 'Games (Graph)'],
-  ['/users', 'Users'],
-  ['/users-graph', 'User Activity (Graph)'],
-  ['/activity', 'Activity'],
-  ['/compare', 'Compare'],
-];
+type NavItem = [string, string, string?];
 
-const adminNavItems = [
-  ['/playtime-management', 'Playtime Management'],
-  ['/imports', 'Imports'],
-  ['/audit-log', 'Audit Log'],
-  ['/system-status', 'System Status'],
+const navItems: NavItem[] = [
+  ['/', 'Dashboard', 'dashboard.view'],
+  ['/games', 'Games', 'games.view'],
+  ['/games-graph', 'Games (Graph)', 'games.view'],
+  ['/users', 'Users', 'users.view'],
+  ['/users-graph', 'User Activity (Graph)', 'users.view'],
+  ['/activity', 'Activity', 'playtime.view'],
+  ['/compare', 'Compare', 'playtime.view'],
+  ['/playtime-management', 'Playtime Management', 'playtime.manage_own'],
+  ['/imports', 'Imports', 'imports.manage'],
+  ['/audit-log', 'Audit Log', 'audit.view'],
+  ['/system-status', 'System Status', 'settings.view'],
+  ['/registrations', 'Registrations', 'registrations.view'],
+  ['/accounts', 'Accounts', 'users.manage'],
+  ['/permissions', 'Permissions', 'permissions.view'],
+  ['/settings', 'Settings', 'settings.view'],
 ];
 
 interface AppLayoutProps {
   isAdmin: boolean;
+  me: MeResponse;
   onSignOut: () => void;
   onSwitchToAdmin: () => void;
   layoutMode: 'mobile' | 'desktop';
@@ -30,6 +35,7 @@ interface AppLayoutProps {
 
 export default function AppLayout({
   isAdmin,
+  me,
   onSignOut,
   onSwitchToAdmin,
   layoutMode,
@@ -38,19 +44,26 @@ export default function AppLayout({
   autoRefreshEnabled,
   onAutoRefreshChange,
 }: AppLayoutProps) {
-  const navItems = isAdmin ? [...baseNavItems, ...adminNavItems] : baseNavItems;
+  const permissionSet = new Set(me.permissions || []);
+  const visibleNavItems = navItems.filter((item) => {
+    const permission = item[2];
+    return permission ? permissionSet.has(permission) : true;
+  });
 
   return (
     <div className={`layout-shell layout-${layoutMode}`}>
       <aside className="sidebar">
         <div className="brand">Discord Playtime Tracker</div>
         <nav>
-          {navItems.map(([to, label]) => (
+          {visibleNavItems.map(([to, label]) => (
             <NavLink key={to} to={to} end={to === '/'} className="nav-link">
               {label}
             </NavLink>
           ))}
         </nav>
+        <div className="subtle" style={{ marginTop: 10, fontSize: '0.85rem' }}>
+          Signed in as: {me.is_guest ? 'Guest' : me.username} ({me.role_name})
+        </div>
         <div className="mode-switcher">
           <label htmlFor="layout-mode">Layout Mode</label>
           <select

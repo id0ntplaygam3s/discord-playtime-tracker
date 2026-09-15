@@ -2,7 +2,8 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy import desc
 from sqlalchemy.orm import Session
 
-from app.api.deps import require_admin
+from app.api.deps import require_permission
+from app.core.permissions import PermissionCode
 from app.api.guilds import resolve_guild_id
 from app.db.session import get_db
 from app.models import AdminUser, AuditLog, Game, User
@@ -15,7 +16,7 @@ def audit_log(
     guild_id: int = Query(default=0),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=50, ge=1, le=100),
-    _=Depends(require_admin),
+    _=Depends(require_permission(PermissionCode.AUDIT_VIEW)),
     db: Session = Depends(get_db),
 ):
     guild_id = resolve_guild_id(db, guild_id)

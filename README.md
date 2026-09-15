@@ -30,6 +30,10 @@ Track game activity your bot can observe in Discord, combine it with historical/
 - Supports historical/manual playtime (for pre-tracker hours)
 - Supports manual positive/negative adjustments
 - Writes audit log entries for admin changes
+- Supports guest, user, and admin application access with role/permission enforcement
+- Supports registration requests tied to known Discord users and admin approval
+- Supports account lock/disable controls and administrator-managed password reset workflow
+- Stores runtime feature/settings controls in PostgreSQL for persistence across container restarts
 
 Tracker behavior highlights:
 - Bot accounts are ignored for tracking and session logging.
@@ -254,9 +258,74 @@ docker compose exec discord-playtime-tracker-postgres psql -U "$POSTGRES_USER" -
 ## First Login
 On login page:
 - `Continue as Guest` gives immediate read-only viewer access.
-- `Admin Sign In` uses `ADMIN_USERNAME` and `ADMIN_PASSWORD`.
+- `User Sign In` authenticates approved user accounts linked to tracked Discord users.
+- `Register` creates a pending account request for a tracked Discord user.
+- `Admin Sign In` uses `ADMIN_USERNAME` and `ADMIN_PASSWORD` as bootstrap/recovery access.
+
+Account and registration flow:
+- Registration is limited to Discord users already tracked in the database.
+- Pending registrations require admin approval before login is allowed.
+- Administrators approve/reject from `Registrations`.
+- Guest access can be disabled at runtime in `Settings`.
+
+Password reset flow (self-hosted, no email dependency):
+- User submits reset request from login page.
+- Admin approves request in `Registrations`, receives one-time reset token.
+- User completes reset with token on login page.
 
 Admin-only pages are hidden/blocked for viewer sessions.
+
+## Authorization Model
+- Role defaults: `guest`, `user`, `admin`
+- Permission enforcement is server-side for every protected API
+- Effective permission precedence:
+1. Per-user override
+2. Role default
+3. Guest/default fallback
+4. Deny by default
+
+Core permissions include:
+- `dashboard.view`, `games.view`, `users.view`
+- `playtime.view`, `playtime.manage_own`, `playtime.manage_all`
+- `imports.manage`, `audit.view`, `registrations.manage`
+- `users.manage`, `permissions.manage`, `settings.manage`
+
+## Runtime Settings
+Runtime settings are database-backed and editable from `Settings` by authorized admins.
+
+Examples:
+- guest access enabled/disabled
+- registration enabled/disabled
+- default role for approved registrations
+- password policy and lockout controls
+- user self-service manual playtime toggles
+
+Secrets remain environment-managed and are not exposed in runtime settings:
+- Discord bot token
+- database credentials
+- JWT secret
+- bootstrap admin password
+
+## Dashboard Ranges
+Dashboard maintains independent state for:
+- selected game
+- selected-game activity range
+- all-games activity range
+- activity-over-time range
+
+Most Played Games still defaults selected game to the first ranked game.
+Most Active in Selected Game and Most Active Players (All Games) use independent date-range tabs.
+
+## Upgrade Notes
+Schema update adds account and RBAC tables through Alembic revision:
+- `0002_accounts_rbac_settings`
+
+Upgrade command:
+```bash
+docker compose exec discord-playtime-tracker-backend alembic upgrade head
+```
+
+This migration preserves existing tracked sessions, manual records, adjustments, users, games, and legacy admin login.
 
 User cleanup:
 - Admins can delete users from the Users page.

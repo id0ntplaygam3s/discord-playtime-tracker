@@ -243,6 +243,80 @@ def test_game_merge_reassigns_guild_data(client, db_session):
     assert game_users.status_code == 200
     assert any(row['id'] == user.id for row in game_users.json())
 
+    db_session.refresh(source_game)
+    assert source_game.canonical_game_id == target_game.id
+
+    source_auto = db_session.query(ActivitySession).filter(ActivitySession.game_id == source_game.id).count()
+    target_auto = db_session.query(ActivitySession).filter(ActivitySession.game_id == target_game.id).count()
+    assert source_auto == 1
+    assert target_auto == 0
+
+
+def test_merge_suggestion_ignore_hides_pair(client, db_session):
+    from app.models import ActivitySession, Game, User
+
+    headers = _auth_header(client)
+    user = User(guild_id=1, discord_user_id=9111, username='merge2', display_name='Merge User 2')
+    source = Game(normalized_name='counter strike 2', display_name='Counter-Strike 2')
+    target = Game(normalized_name='counterstrike 2', display_name='Counter Strike 2')
+    db_session.add_all([user, source, target])
+    db_session.commit()
+    db_session.refresh(user)
+    db_session.refresh(source)
+    db_session.refresh(target)
+
+    start = datetime(2026, 9, 10, 20, 0, tzinfo=timezone.utc)
+    db_session.add(ActivitySession(guild_id=1, user_id=user.id, game_id=source.id, started_at=start, ended_at=start + timedelta(minutes=20)))
+    db_session.commit()
+
+    before = client.get('/api/games/meta/merge-suggestions', headers=headers)
+    assert before.status_code == 200
+
+    ignored = client.post(f'/api/games/meta/merge-suggestions/{source.id}/{target.id}/ignore', json={'guild_id': 1}, headers=headers)
+    assert ignored.status_code == 200
+
+    after = client.get('/api/games/meta/merge-suggestions', headers=headers)
+    assert after.status_code == 200
+    assert not any(row['source_game_id'] == source.id and row['target_game_id'] == target.id for row in after.json())
+
+
+def test_stats_custom_range_validation(client):
+    headers = _auth_header(client)
+
+    missing_to = client.get(
+        '/api/stats/overview',
+        params={'guild_id': 1, 'range': 'custom', 'from': '2026-01-01T00:00:00Z'},
+        headers=headers,
+    )
+    assert missing_to.status_code == 400
+
+    inverted = client.get(
+        '/api/stats/overview',
+        params={
+            'guild_id': 1,
+            'range': 'custom',
+            'from': '2026-01-10T00:00:00Z',
+            'to': '2026-01-01T00:00:00Z',
+        },
+        headers=headers,
+    )
+    assert inverted.status_code == 400
+
+
+def test_stats_custom_range_valid(client):
+    headers = _auth_header(client)
+    resp = client.get(
+        '/api/stats/overview',
+        params={
+            'guild_id': 1,
+            'range': 'custom',
+            'from': '2026-01-01T00:00:00Z',
+            'to': '2026-01-10T00:00:00Z',
+        },
+        headers=headers,
+    )
+    assert resp.status_code == 200
+
 
 def test_active_sessions_allows_guild_id_zero_fallback(client, db_session):
     from app.models import ActivitySession, Game, User

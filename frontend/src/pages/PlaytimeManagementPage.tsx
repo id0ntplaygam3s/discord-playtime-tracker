@@ -1,5 +1,17 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
-import { addAdjustment, addManualPlaytime, deleteManualPlaytime, listGames, listManualPlaytime, listUsers, setTotal } from '../api/adminApi';
+import {
+  addAdjustment,
+  addManualPlaytime,
+  addOwnManualPlaytime,
+  deleteManualPlaytime,
+  deleteOwnManualPlaytime,
+  getMe,
+  listGames,
+  listManualPlaytime,
+  listOwnManualPlaytime,
+  listUsers,
+  setTotal,
+} from '../api/adminApi';
 import { formatDuration } from '../utils/time';
 
 type OptionRow = {
@@ -20,6 +32,8 @@ type ManualEntry = {
   id: number;
   user_id: number;
   game_id: number;
+  game_display_name?: string;
+  canonical_game_id?: number;
   duration_seconds: number;
   source: 'historical' | 'imported' | 'correction';
   note?: string | null;
@@ -36,6 +50,8 @@ export default function PlaytimeManagementPage() {
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [entries, setEntries] = useState<ManualEntry[]>([]);
+  const [canManageAll, setCanManageAll] = useState(false);
+  const [currentTrackedUserId, setCurrentTrackedUserId] = useState<number | null>(null);
 
   const [userId, setUserId] = useState<number>(0);
   const [gameId, setGameId] = useState<number>(0);
@@ -55,7 +71,23 @@ export default function PlaytimeManagementPage() {
   const [targetMinutes, setTargetMinutes] = useState<number>(0);
   const [targetReason, setTargetReason] = useState('');
 
-  const refreshOptions = async () => {
+  const refreshOptions = async (manageAll: boolean = canManageAll) => {
+    if (!manageAll) {
+      setLoadingGames(true);
+      try {
+        const gamesResult = await listGames(guildId);
+        const nextGames = normalizeRows(gamesResult);
+        setGames(nextGames);
+        setGameId((current) => (nextGames.some((g) => g.id === current) ? current : nextGames[0]?.id || 0));
+      } catch (err: any) {
+        setGames([]);
+        setError(err?.response?.data?.detail || 'Failed to load games');
+      } finally {
+        setLoadingGames(false);
+      }
+      return;
+    }
+
     setLoadingUsers(true);
     setLoadingGames(true);
 
@@ -83,10 +115,12 @@ export default function PlaytimeManagementPage() {
     setLoadingGames(false);
   };
 
-  const refreshEntries = async (nextUserId?: number, nextGameId?: number) => {
+  const refreshEntries = async (nextUserId?: number, nextGameId?: number, manageAll: boolean = canManageAll) => {
     setLoadingEntries(true);
     try {
-      const rows = await listManualPlaytime(guildId, nextUserId || userId || undefined, nextGameId || gameId || undefined, 40);
+      const rows = manageAll
+        ? await listManualPlaytime(guildId, nextUserId || userId || undefined, nextGameId || gameId || undefined, 40)
+        : await listOwnManualPlaytime(guildId, nextGameId || gameId || undefined, 40);
       setEntries(Array.isArray(rows) ? rows : []);
     } catch (err: any) {
       setEntries([]);
@@ -98,6 +132,22 @@ export default function PlaytimeManagementPage() {
 
   useEffect(() => {
     void (async () => {
+      try {
+        const me = await getMe();
+        const permissionSet = new Set(me.permissions || []);
+        const all = permissionSet.has('playtime.manage_all');
+        setCanManageAll(all);
+        setCurrentTrackedUserId(me.tracked_user_id || null);
+        if (!all && me.tracked_user_id) {
+          setUserId(me.tracked_user_id);
+          setUsers([{ id: me.tracked_user_id, display_name: me.username }]);
+        }
+        await refreshOptions(all);
+        await refreshEntries(me.tracked_user_id || undefined, undefined, all);
+        return;
+      } catch {
+        setCanManageAll(false);
+      }
       await refreshOptions();
       await refreshEntries();
     })();
@@ -105,7 +155,7 @@ export default function PlaytimeManagementPage() {
 
   useEffect(() => {
     void refreshEntries();
-  }, [userId, gameId]);
+  }, [userId, gameId, canManageAll]);
 
   const selectedUser = useMemo(() => users.find((u) => u.id === Number(userId)), [users, userId]);
   const selectedGame = useMemo(() => games.find((g) => g.id === Number(gameId)), [games, gameId]);
@@ -118,7 +168,8 @@ export default function PlaytimeManagementPage() {
     setMessage(null);
 
     const customTitle = customGameTitle.trim();
-    if (!userId) {
+    const targetUserId = canManageAll ? Number(userId) : Number(currentTrackedUserId || userId);
+    if (!targetUserId) {
       setError('Select a user before saving manual playtime');
       return;
     }
@@ -132,19 +183,24 @@ export default function PlaytimeManagementPage() {
     }
 
     try {
-      await addManualPlaytime({
+      const payload = {
         guild_id: guildId,
-        user_id: Number(userId),
+        user_id: targetUserId,
         game_id: useCustomGame ? undefined : Number(gameId),
+        use_custom_game_title: useCustomGame,
         custom_game_title: useCustomGame ? customTitle : undefined,
         hours: Number(hours),
         minutes: Number(minutes),
         source,
         note,
-      });
+      };
+      const result = canManageAll ? await addManualPlaytime(payload) : await addOwnManualPlaytime(payload);
+      if (result?.game_id) {
+        setGameId(Number(result.game_id));
+      }
       setMessage('Manual playtime saved.');
       await refreshOptions();
-      await refreshEntries();
+      await refreshEntries(targetUserId, result?.game_id ? Number(result.game_id) : undefined, canManageAll);
     } catch (err: any) {
       setError(err?.response?.data?.detail || 'Failed to save manual playtime');
     }
@@ -203,7 +259,11 @@ export default function PlaytimeManagementPage() {
     setError(null);
     setMessage(null);
     try {
-      await deleteManualPlaytime(guildId, entryId);
+      if (canManageAll) {
+        await deleteManualPlaytime(guildId, entryId);
+      } else {
+        await deleteOwnManualPlaytime(guildId, entryId);
+      }
       setMessage('Manual entry deleted.');
       await refreshEntries();
     } catch (err: any) {
@@ -222,15 +282,24 @@ export default function PlaytimeManagementPage() {
         </div>
 
         <div className="form-row">
-          <label>User</label>
-          <select value={userId} onChange={(e) => setUserId(Number(e.target.value))}>
-            {users.length === 0 && <option value={0}>No users found</option>}
-            {users.map((u) => (
-              <option value={u.id} key={u.id}>
-                {u.display_name}
-              </option>
-            ))}
-          </select>
+          {canManageAll ? (
+            <>
+              <label>User</label>
+              <select value={userId} onChange={(e) => setUserId(Number(e.target.value))}>
+                {users.length === 0 && <option value={0}>No users found</option>}
+                {users.map((u) => (
+                  <option value={u.id} key={u.id}>
+                    {u.display_name}
+                  </option>
+                ))}
+              </select>
+            </>
+          ) : (
+            <>
+              <label>User</label>
+              <input value={selectedUser?.display_name || 'Current user'} disabled />
+            </>
+          )}
 
           <label>Game</label>
           {!useCustomGame ? (
@@ -276,6 +345,9 @@ export default function PlaytimeManagementPage() {
 
       <form className="panel" onSubmit={handleManual}>
         <h3>Add Manual Historical/Imported Time</h3>
+        <p className="subtle" style={{ marginTop: -8 }}>
+          Use this for missing past time or imports that never came from live Discord sessions.
+        </p>
         <div className="form-grid-3">
           <input type="number" min={0} value={hours} onChange={(e) => setHours(Number(e.target.value))} placeholder="Hours" />
           <input type="number" min={0} max={59} value={minutes} onChange={(e) => setMinutes(Number(e.target.value))} placeholder="Minutes" />
@@ -291,29 +363,39 @@ export default function PlaytimeManagementPage() {
         </button>
       </form>
 
-      <form className="panel" onSubmit={handleAdjustment}>
-        <h3>Add Adjustment</h3>
-        <div className="form-grid-4">
-          <select value={adjSign} onChange={(e) => setAdjSign(Number(e.target.value))}>
-            <option value={1}>+</option>
-            <option value={-1}>-</option>
-          </select>
-          <input type="number" min={0} value={adjHours} onChange={(e) => setAdjHours(Number(e.target.value))} placeholder="Hours" />
-          <input type="number" min={0} max={59} value={adjMinutes} onChange={(e) => setAdjMinutes(Number(e.target.value))} placeholder="Minutes" />
-          <input value={adjReason} onChange={(e) => setAdjReason(e.target.value)} placeholder="Reason" />
-        </div>
-        <button type="submit" disabled={!userId || !canUseSavedGame}>Save Adjustment</button>
-      </form>
+      {canManageAll && (
+        <form className="panel" onSubmit={handleAdjustment}>
+          <h3>Add Adjustment</h3>
+          <p className="subtle" style={{ marginTop: -8 }}>
+            Use adjustments for quick corrections only. Positive adds time, negative subtracts time.
+          </p>
+          <div className="form-grid-4">
+            <select value={adjSign} onChange={(e) => setAdjSign(Number(e.target.value))}>
+              <option value={1}>+</option>
+              <option value={-1}>-</option>
+            </select>
+            <input type="number" min={0} value={adjHours} onChange={(e) => setAdjHours(Number(e.target.value))} placeholder="Hours" />
+            <input type="number" min={0} max={59} value={adjMinutes} onChange={(e) => setAdjMinutes(Number(e.target.value))} placeholder="Minutes" />
+            <input value={adjReason} onChange={(e) => setAdjReason(e.target.value)} placeholder="Reason" />
+          </div>
+          <button type="submit" disabled={!userId || !canUseSavedGame}>Save Adjustment</button>
+        </form>
+      )}
 
-      <form className="panel" onSubmit={handleSetTotal}>
-        <h3>Set Absolute Total</h3>
-        <div className="form-grid-3">
-          <input type="number" min={0} value={targetHours} onChange={(e) => setTargetHours(Number(e.target.value))} placeholder="Target hours" />
-          <input type="number" min={0} max={59} value={targetMinutes} onChange={(e) => setTargetMinutes(Number(e.target.value))} placeholder="Target minutes" />
-          <input value={targetReason} onChange={(e) => setTargetReason(e.target.value)} placeholder="Reason" />
-        </div>
-        <button type="submit" disabled={!userId || !canUseSavedGame}>Apply Absolute Total</button>
-      </form>
+      {canManageAll && (
+        <form className="panel" onSubmit={handleSetTotal}>
+          <h3>Set Absolute Total</h3>
+          <p className="subtle" style={{ marginTop: -8 }}>
+            Sets final total by calculating a hidden adjustment delta; this does not rewrite existing session history.
+          </p>
+          <div className="form-grid-3">
+            <input type="number" min={0} value={targetHours} onChange={(e) => setTargetHours(Number(e.target.value))} placeholder="Target hours" />
+            <input type="number" min={0} max={59} value={targetMinutes} onChange={(e) => setTargetMinutes(Number(e.target.value))} placeholder="Target minutes" />
+            <input value={targetReason} onChange={(e) => setTargetReason(e.target.value)} placeholder="Reason" />
+          </div>
+          <button type="submit" disabled={!userId || !canUseSavedGame}>Apply Absolute Total</button>
+        </form>
+      )}
 
       <div className="panel">
         <h3>Recent Manual Entries</h3>
@@ -328,6 +410,7 @@ export default function PlaytimeManagementPage() {
               <thead>
                 <tr>
                   <th>When</th>
+                  <th>Game</th>
                   <th>Source</th>
                   <th>Duration</th>
                   <th>Note</th>
@@ -338,6 +421,7 @@ export default function PlaytimeManagementPage() {
                 {entries.map((entry) => (
                   <tr key={entry.id}>
                     <td>{entry.created_at ? new Date(entry.created_at).toLocaleString() : '-'}</td>
+                    <td>{entry.game_display_name || `#${entry.game_id}`}</td>
                     <td>{entry.source}</td>
                     <td>{formatDuration(entry.duration_seconds)}</td>
                     <td>{entry.note || '-'}</td>

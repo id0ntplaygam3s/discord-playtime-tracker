@@ -4,7 +4,8 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_current_user
+from app.api.deps import require_permission
+from app.core.permissions import PermissionCode
 from app.api.guilds import resolve_guild_id
 from app.db.session import get_db
 from app.models import ActivitySession, Game, ManualPlaytime, PlaytimeAdjustment, User
@@ -26,28 +27,30 @@ def _per_user_game_totals(db: Session, guild_id: int, user_ids: list[int]):
     auto_rows = (
         db.query(
             ActivitySession.user_id,
-            ActivitySession.game_id,
+            func.coalesce(Game.canonical_game_id, Game.id),
             func.coalesce(func.sum(func.extract("epoch", ActivitySession.ended_at - ActivitySession.started_at)), 0),
         )
+        .join(Game, Game.id == ActivitySession.game_id)
         .filter(
             ActivitySession.guild_id == guild_id,
             ActivitySession.user_id.in_(user_ids),
             ActivitySession.ended_at.is_not(None),
         )
-        .group_by(ActivitySession.user_id, ActivitySession.game_id)
+        .group_by(ActivitySession.user_id, func.coalesce(Game.canonical_game_id, Game.id))
         .all()
     )
     for user_id, game_id, seconds in auto_rows:
         totals[(int(user_id), int(game_id))] = totals.get((int(user_id), int(game_id)), 0) + int(seconds or 0)
 
     hist_rows = (
-        db.query(ManualPlaytime.user_id, ManualPlaytime.game_id, func.coalesce(func.sum(ManualPlaytime.duration_seconds), 0))
+        db.query(ManualPlaytime.user_id, func.coalesce(Game.canonical_game_id, Game.id), func.coalesce(func.sum(ManualPlaytime.duration_seconds), 0))
+        .join(Game, Game.id == ManualPlaytime.game_id)
         .filter(
             ManualPlaytime.guild_id == guild_id,
             ManualPlaytime.user_id.in_(user_ids),
             ManualPlaytime.deleted_at.is_(None),
         )
-        .group_by(ManualPlaytime.user_id, ManualPlaytime.game_id)
+        .group_by(ManualPlaytime.user_id, func.coalesce(Game.canonical_game_id, Game.id))
         .all()
     )
     for user_id, game_id, seconds in hist_rows:
@@ -56,11 +59,12 @@ def _per_user_game_totals(db: Session, guild_id: int, user_ids: list[int]):
     adj_rows = (
         db.query(
             PlaytimeAdjustment.user_id,
-            PlaytimeAdjustment.game_id,
+            func.coalesce(Game.canonical_game_id, Game.id),
             func.coalesce(func.sum(PlaytimeAdjustment.adjustment_seconds), 0),
         )
+        .join(Game, Game.id == PlaytimeAdjustment.game_id)
         .filter(PlaytimeAdjustment.guild_id == guild_id, PlaytimeAdjustment.user_id.in_(user_ids))
-        .group_by(PlaytimeAdjustment.user_id, PlaytimeAdjustment.game_id)
+        .group_by(PlaytimeAdjustment.user_id, func.coalesce(Game.canonical_game_id, Game.id))
         .all()
     )
     for user_id, game_id, seconds in adj_rows:
@@ -80,7 +84,7 @@ def _per_user_game_totals(db: Session, guild_id: int, user_ids: list[int]):
 def compare_users(
     guild_id: int = Query(default=0),
     user_ids: list[int] = Query(...),
-    _: object = Depends(get_current_user),
+    _: object = Depends(require_permission(PermissionCode.PLAYTIME_VIEW)),
     db: Session = Depends(get_db),
 ):
     guild_id = resolve_guild_id(db, guild_id)
@@ -132,7 +136,7 @@ def compare_users(
 def shared_games(
     guild_id: int = Query(default=0),
     user_ids: list[int] = Query(...),
-    _: object = Depends(get_current_user),
+    _: object = Depends(require_permission(PermissionCode.PLAYTIME_VIEW)),
     db: Session = Depends(get_db),
 ):
     guild_id = resolve_guild_id(db, guild_id)

@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 from sqlalchemy.orm import Session
 
 from app.models import ActivitySession, AuditAction, AuditLog, Game, Guild, User
+from app.services.game_identity_service import add_alias_if_missing, find_game_by_name_or_alias, resolve_canonical_game
 from app.services.normalization import normalize_game_name
 
 
@@ -59,22 +60,28 @@ def get_or_create_game(
     icon_url: str | None,
     commit: bool = True,
 ) -> Game:
-    normalized = normalize_game_name(game_name)
+    raw_name = (game_name or "").strip()
+    normalized = normalize_game_name(raw_name)
+    if not normalized:
+        raise ValueError("Game title cannot be empty")
 
     game = None
     if discord_application_id:
         game = db.query(Game).filter(Game.discord_application_id == discord_application_id).first()
+        if game is not None:
+            game = resolve_canonical_game(db, game)
 
     if not game:
-        game = db.query(Game).filter(Game.normalized_name == normalized).first()
+        game = find_game_by_name_or_alias(db, raw_name)
 
     if game:
-        game.display_name = game_name
+        game.display_name = raw_name
         game.last_seen_at = now_utc()
         if icon_url:
             game.icon_url = icon_url
         if discord_application_id and not game.discord_application_id:
             game.discord_application_id = discord_application_id
+        add_alias_if_missing(db, game.id, raw_name)
         if commit:
             db.commit()
             db.refresh(game)
@@ -85,12 +92,14 @@ def get_or_create_game(
     game = Game(
         discord_application_id=discord_application_id,
         normalized_name=normalized,
-        display_name=game_name,
+        display_name=raw_name,
         icon_url=icon_url,
         first_seen_at=now_utc(),
         last_seen_at=now_utc(),
     )
     db.add(game)
+    db.flush()
+    add_alias_if_missing(db, game.id, raw_name)
     if commit:
         db.commit()
         db.refresh(game)
@@ -170,6 +179,9 @@ def write_audit_log(
     change_seconds: int | None,
     reason: str | None,
     metadata_json: dict | None = None,
+    actor_account_id: int | None = None,
+    actor_type: str | None = None,
+    actor_label: str | None = None,
     commit: bool = True,
 ) -> None:
     db.add(
@@ -177,6 +189,9 @@ def write_audit_log(
             guild_id=guild_id,
             action=action,
             admin_user_id=admin_user_id,
+            actor_account_id=actor_account_id,
+            actor_type=actor_type,
+            actor_label=actor_label,
             target_user_id=target_user_id,
             target_game_id=target_game_id,
             change_seconds=change_seconds,

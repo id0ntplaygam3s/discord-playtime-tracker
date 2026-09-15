@@ -5,6 +5,8 @@ from sqlalchemy.orm import Session
 from app.core.config import Settings
 from app.core.security import hash_password
 from app.models import AdminUser, Guild, Role
+from app.services.authz_service import ensure_roles_and_permissions
+from app.services.settings_service import ensure_default_settings
 
 
 def seed_initial_data(db: Session, settings: Settings) -> None:
@@ -22,5 +24,8 @@ def seed_initial_data(db: Session, settings: Settings) -> None:
                 role=Role.admin,
             )
         )
+
+    ensure_roles_and_permissions(db)
+    ensure_default_settings(db)
 
     db.commit()

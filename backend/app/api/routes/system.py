@@ -4,7 +4,8 @@ from fastapi import APIRouter, Depends, Request
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_current_user
+from app.api.deps import require_permission
+from app.core.permissions import PermissionCode
 from app.core.config import get_settings
 from app.db.session import get_db
 from app.models import ActivitySession, Guild, ManualPlaytime, PlaytimeAdjustment
@@ -14,7 +15,7 @@ router = APIRouter(prefix="/system", tags=["system"])
 
 
 @router.get("/status", response_model=SystemStatus)
-def system_status(request: Request, _: object = Depends(get_current_user), db: Session = Depends(get_db)):
+def system_status(request: Request, _: object = Depends(require_permission(PermissionCode.SETTINGS_VIEW)), db: Session = Depends(get_db)):
     settings = get_settings()
     manager = request.app.state.bot_manager
     guild = db.query(Guild).filter(Guild.discord_guild_id == settings.discord_guild_id).first()

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { getMe } from './api/adminApi';
 import { AppPreferencesProvider } from './context/AppPreferencesContext';
+import { MeResponse } from './types';
 import AppLayout from './layouts/AppLayout';
 import ActivityPage from './pages/ActivityPage';
 import AuditLogPage from './pages/AuditLogPage';
@@ -13,6 +14,10 @@ import GamesGraphPage from './pages/GamesGraphPage';
 import ImportsPage from './pages/ImportsPage';
 import LoginPage from './pages/LoginPage';
 import PlaytimeManagementPage from './pages/PlaytimeManagementPage';
+import AccountsPage from './pages/AccountsPage';
+import PermissionsPage from './pages/PermissionsPage';
+import RegistrationsPage from './pages/RegistrationsPage';
+import SettingsPage from './pages/SettingsPage';
 import SystemStatusPage from './pages/SystemStatusPage';
 import UserProfilePage from './pages/UserProfilePage';
 import UsersGraphPage from './pages/UsersGraphPage';
@@ -34,7 +39,7 @@ function detectDeviceMobile(): boolean {
 
 export default function App() {
   const [authed, setAuthed] = useState(isAuthenticated());
-  const [role, setRole] = useState<'admin' | 'viewer' | null>(null);
+  const [me, setMe] = useState<MeResponse | null>(null);
   const [layoutPreference, setLayoutPreference] = useState<LayoutModePreference>(() => {
     const stored = localStorage.getItem('tracker_layout_mode');
     return stored === 'mobile' || stored === 'desktop' || stored === 'auto' ? stored : 'auto';
@@ -64,25 +69,25 @@ export default function App() {
 
   useEffect(() => {
     if (!authed) {
-      setRole(null);
+      setMe(null);
       return;
     }
-    const loadRole = async () => {
+    const loadSession = async () => {
       try {
-        const me = await getMe();
-        setRole(me.role);
+        const session = await getMe();
+        setMe(session);
       } catch {
         localStorage.removeItem('tracker_token');
         setAuthed(false);
       }
     };
-    void loadRole();
+    void loadSession();
   }, [authed]);
 
   const handleSignOut = () => {
     localStorage.removeItem('tracker_token');
     localStorage.removeItem('tracker_force_admin_login');
-    setRole(null);
+    setMe(null);
     setAuthed(false);
   };
 
@@ -95,11 +100,25 @@ export default function App() {
     return <LoginPage onAuth={() => setAuthed(true)} />;
   }
 
-  if (!role) {
+  if (!me) {
     return <div className="panel">Loading account...</div>;
   }
 
-  const isAdmin = role === 'admin';
+  const isAdmin = me.role_name === 'admin';
+  const permissionSet = new Set(me.permissions || []);
+
+  const canViewDashboard = permissionSet.has('dashboard.view');
+  const canViewGames = permissionSet.has('games.view');
+  const canViewUsers = permissionSet.has('users.view');
+  const canViewPlaytime = permissionSet.has('playtime.view');
+  const canManageOwnPlaytime = permissionSet.has('playtime.manage_own');
+  const canManageAllPlaytime = permissionSet.has('playtime.manage_all');
+  const canManageImports = permissionSet.has('imports.manage');
+  const canViewAudit = permissionSet.has('audit.view');
+  const canViewSettings = permissionSet.has('settings.view');
+  const canManageUsers = permissionSet.has('users.manage');
+  const canViewRegistrations = permissionSet.has('registrations.view');
+  const canViewPermissions = permissionSet.has('permissions.view');
 
   return (
     <AppPreferencesProvider value={{ autoRefreshEnabled }}>
@@ -108,6 +127,7 @@ export default function App() {
         element={
           <AppLayout
             isAdmin={isAdmin}
+            me={me}
             onSignOut={handleSignOut}
             onSwitchToAdmin={handleSwitchToAdmin}
             layoutMode={resolvedLayoutMode}
@@ -118,21 +138,25 @@ export default function App() {
           />
         }
       >
-        <Route path="/" element={<DashboardPage />} />
-        <Route path="/games" element={<GamesPage />} />
-        <Route path="/games-graph" element={<GamesGraphPage />} />
-        <Route path="/games/:gameId" element={<GameProfilePage />} />
-        <Route path="/users" element={<UsersPage />} />
-        <Route path="/users-graph" element={<UsersGraphPage />} />
-        <Route path="/users/:userId" element={<UserProfilePage />} />
-        <Route path="/activity" element={<ActivityPage />} />
-        <Route path="/compare" element={<ComparePage />} />
-        {isAdmin && <Route path="/playtime-management" element={<PlaytimeManagementPage />} />}
-        {isAdmin && <Route path="/imports" element={<ImportsPage />} />}
-        {isAdmin && <Route path="/audit-log" element={<AuditLogPage />} />}
-        {isAdmin && <Route path="/system-status" element={<SystemStatusPage />} />}
+        {canViewDashboard && <Route path="/" element={<DashboardPage />} />}
+        {canViewGames && <Route path="/games" element={<GamesPage />} />}
+        {canViewGames && <Route path="/games-graph" element={<GamesGraphPage />} />}
+        {canViewGames && <Route path="/games/:gameId" element={<GameProfilePage />} />}
+        {canViewUsers && <Route path="/users" element={<UsersPage />} />}
+        {canViewUsers && <Route path="/users-graph" element={<UsersGraphPage />} />}
+        {canViewUsers && <Route path="/users/:userId" element={<UserProfilePage />} />}
+        {canViewPlaytime && <Route path="/activity" element={<ActivityPage />} />}
+        {canViewPlaytime && <Route path="/compare" element={<ComparePage />} />}
+        {(canManageAllPlaytime || canManageOwnPlaytime) && <Route path="/playtime-management" element={<PlaytimeManagementPage />} />}
+        {canManageImports && <Route path="/imports" element={<ImportsPage />} />}
+        {canViewAudit && <Route path="/audit-log" element={<AuditLogPage />} />}
+        {canViewSettings && <Route path="/system-status" element={<SystemStatusPage />} />}
+        {canViewRegistrations && <Route path="/registrations" element={<RegistrationsPage />} />}
+        {canManageUsers && <Route path="/accounts" element={<AccountsPage />} />}
+        {canViewPermissions && <Route path="/permissions" element={<PermissionsPage />} />}
+        {canViewSettings && <Route path="/settings" element={<SettingsPage />} />}
       </Route>
-      <Route path="*" element={<Navigate to="/" />} />
+      <Route path="*" element={<Navigate to={canViewDashboard ? '/' : '/games'} />} />
       </Routes>
     </AppPreferencesProvider>
   );

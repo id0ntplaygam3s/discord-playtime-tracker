@@ -2,7 +2,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import desc, func
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_current_user, require_admin
+from app.api.deps import require_permission
+from app.core.permissions import PermissionCode
 from app.api.guilds import resolve_guild_id
 from app.db.session import get_db
 from app.models import ActivitySession, Game, ManualPlaytime, PlaytimeAdjustment, User
@@ -21,7 +22,7 @@ def list_users(
     guild_id: int = Query(default=0),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100),
-    _: object = Depends(get_current_user),
+    _: object = Depends(require_permission(PermissionCode.USERS_VIEW)),
     db: Session = Depends(get_db),
 ):
     guild_id = resolve_guild_id(db, guild_id)
@@ -41,7 +42,7 @@ def list_users(
 def user_profile(
     user_id: int,
     guild_id: int = Query(default=0),
-    _: object = Depends(get_current_user),
+    _: object = Depends(require_permission(PermissionCode.USERS_VIEW)),
     db: Session = Depends(get_db),
 ):
     guild_id = resolve_guild_id(db, guild_id)
@@ -81,7 +82,7 @@ def user_profile(
 def user_games(
     user_id: int,
     guild_id: int = Query(default=0),
-    _: object = Depends(get_current_user),
+    _: object = Depends(require_permission(PermissionCode.PLAYTIME_VIEW)),
     db: Session = Depends(get_db),
 ):
     guild_id = resolve_guild_id(db, guild_id)
@@ -91,29 +92,32 @@ def user_games(
 
     auto_q = (
         db.query(
-            ActivitySession.game_id.label("game_id"),
+            func.coalesce(Game.canonical_game_id, Game.id).label("game_id"),
             func.coalesce(func.sum(_duration_seconds_expr(db)), 0).label("auto_seconds"),
         )
+        .join(Game, Game.id == ActivitySession.game_id)
         .filter(ActivitySession.guild_id == guild_id, ActivitySession.user_id == user_id, ActivitySession.ended_at.is_not(None))
-        .group_by(ActivitySession.game_id)
+        .group_by(func.coalesce(Game.canonical_game_id, Game.id))
         .subquery()
     )
     hist_q = (
         db.query(
-            ManualPlaytime.game_id.label("game_id"),
+            func.coalesce(Game.canonical_game_id, Game.id).label("game_id"),
             func.coalesce(func.sum(ManualPlaytime.duration_seconds), 0).label("hist_seconds"),
         )
+        .join(Game, Game.id == ManualPlaytime.game_id)
         .filter(ManualPlaytime.guild_id == guild_id, ManualPlaytime.user_id == user_id, ManualPlaytime.deleted_at.is_(None))
-        .group_by(ManualPlaytime.game_id)
+        .group_by(func.coalesce(Game.canonical_game_id, Game.id))
         .subquery()
     )
     adj_q = (
         db.query(
-            PlaytimeAdjustment.game_id.label("game_id"),
+            func.coalesce(Game.canonical_game_id, Game.id).label("game_id"),
             func.coalesce(func.sum(PlaytimeAdjustment.adjustment_seconds), 0).label("adj_seconds"),
         )
+        .join(Game, Game.id == PlaytimeAdjustment.game_id)
         .filter(PlaytimeAdjustment.guild_id == guild_id, PlaytimeAdjustment.user_id == user_id)
-        .group_by(PlaytimeAdjustment.game_id)
+        .group_by(func.coalesce(Game.canonical_game_id, Game.id))
         .subquery()
     )
 
@@ -143,7 +147,7 @@ def user_sessions(
     guild_id: int = Query(default=0),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100),
-    _: object = Depends(get_current_user),
+    _: object = Depends(require_permission(PermissionCode.PLAYTIME_VIEW)),
     db: Session = Depends(get_db),
 ):
     guild_id = resolve_guild_id(db, guild_id)
@@ -176,7 +180,7 @@ def user_sessions(
 def delete_user(
     user_id: int,
     guild_id: int = Query(default=0),
-    _=Depends(require_admin),
+    _=Depends(require_permission(PermissionCode.USERS_MANAGE)),
     db: Session = Depends(get_db),
 ):
     guild_id = resolve_guild_id(db, guild_id)
