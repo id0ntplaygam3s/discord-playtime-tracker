@@ -350,7 +350,7 @@ export default function DashboardPage() {
                 <div className="subtle">Custom range applies to all-players ranking.</div>
               </div>
             )}
-            <TopUsersChart data={users} title="" height={270} showValues={showValues} frameless />
+            <TopUsersChart data={users} title="" height={360} showValues={showValues} frameless />
           </div>
           <CurrentSessions sessions={active} title="Currently Playing" compact />
         </div>
