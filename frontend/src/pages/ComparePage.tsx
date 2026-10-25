@@ -95,11 +95,11 @@ export default function ComparePage() {
 
       <div className="panel">
         <h2>Compare Users</h2>
-        <p className="subtle">Select 2-6 users and compare combined totals only.</p>
+        <p className="subtle">Select multiple users to compare combined totals.</p>
         <div className="filters" style={{ marginBottom: 10, flexDirection: 'column', alignItems: 'stretch', gap: 10 }}>
           <SearchInput value={query} onChange={setQuery} placeholder="Search users..." ariaLabel="Search users" />
           <div style={{ display: 'flex', gap: 8 }}>
-            <button type="button" onClick={selectAll}>Select All (Max 6)</button>
+            <button type="button" onClick={selectAll}>Select All</button>
             <button type="button" onClick={clearSelected}>Clear</button>
           </div>
         </div>
