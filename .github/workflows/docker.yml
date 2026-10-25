@@ -50,10 +50,8 @@ jobs:
             echo "backend=true" >> $GITHUB_OUTPUT
             echo "frontend=true" >> $GITHUB_OUTPUT
           else
-            BACKEND=$(git diff-tree --no-commit-id --name-only -r "${{ github.event.before }}" "${{ github.sha }}" | grep -q "^backend/" && echo "true" || echo "false")
-            FRONTEND=$(git diff-tree --no-commit-id --name-only -r "${{ github.event.before }}" "${{ github.sha }}" | grep -q "^frontend/" && echo "true" || echo "false")
-            echo "backend=$BACKEND" >> $GITHUB_OUTPUT
-            echo "frontend=$FRONTEND" >> $GITHUB_OUTPUT
+            echo "backend=true" >> $GITHUB_OUTPUT
+            echo "frontend=true" >> $GITHUB_OUTPUT
           fi
 
   build-and-push:
