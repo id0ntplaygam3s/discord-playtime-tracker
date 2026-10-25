@@ -15,8 +15,6 @@ import { DateRangeKey, RankedPlaytime } from '../types';
 import { activityRangeOptions, allGamesRangeOptions, selectedGameRangeOptions } from '../utils/dateRanges';
 import { formatDuration } from '../utils/time';
 
-const REFRESH_INTERVAL = 30000;
-
 function describeRangeWindow(range: DateRangeKey, from?: string, to?: string): string {
   const today = dayjs().endOf('day');
   if (range === 'all') return 'All time';
@@ -71,30 +69,9 @@ export default function DashboardPage() {
   );
 
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
-  const [countdown, setCountdown] = useState<number>(REFRESH_INTERVAL / 1000);
-
-  useEffect(() => {
-    if (!autoRefreshEnabled) {
-      setCountdown(REFRESH_INTERVAL / 1000);
-      return;
-    }
-
-    setCountdown(REFRESH_INTERVAL / 1000);
-    const timer = setInterval(() => {
-      setCountdown((prev) => {
-        if (prev <= 1) {
-          return REFRESH_INTERVAL / 1000;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-
-    return () => clearInterval(timer);
-  }, [autoRefreshEnabled]);
 
   const handleRefresh = useCallback(async () => {
     setLastUpdated(new Date());
-    setCountdown(REFRESH_INTERVAL / 1000);
   }, []);
 
   const handleExportCSV = useCallback(() => {
@@ -138,7 +115,11 @@ export default function DashboardPage() {
     return formatDuration(overview.total_combined_seconds);
   }, [overview]);
 
-  const selectedGame = useMemo(() => games.find((g) => g.id === selectedGameId), [games, selectedGameId]);
+  const selectedGame = useMemo(() => {
+    const fromAllTime = games.find((g) => g.id === selectedGameId);
+    const fromTimeline = activityTopGames.find((g) => g.id === selectedGameId);
+    return fromAllTime || fromTimeline || null;
+  }, [games, activityTopGames, selectedGameId]);
   const selectedGameTopPlayer = selectedGameUsers[0];
   const selectedGameColors = useMemo(
     () =>
@@ -152,12 +133,14 @@ export default function DashboardPage() {
   );
 
   useEffect(() => {
-    if (games.length === 0) {
+    if (activityTopGames.length > 0) {
+      setSelectedGameId(activityTopGames[0].id);
+    } else if (games.length > 0) {
+      setSelectedGameId(games[0].id);
+    } else {
       setSelectedGameId(0);
-      return;
     }
-    setSelectedGameId((current) => (games.some((g) => g.id === current) ? current : games[0].id));
-  }, [games]);
+  }, [activityTopGames, games]);
 
   useEffect(() => {
     let cancelled = false;
@@ -339,9 +322,6 @@ export default function DashboardPage() {
             {lastUpdated && (
               <span className="last-updated">
                 {' '}· Last updated {dayjs(lastUpdated).fromNow()}
-                {autoRefreshEnabled && (
-                  <span className="countdown"> · Refreshing in {countdown}s</span>
-                )}
               </span>
             )}
           </p>
