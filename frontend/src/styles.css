@@ -186,6 +186,12 @@ h3 {
   font-size: 0.85rem;
 }
 
+.countdown {
+  color: var(--blue);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
 .filters {
   display: flex;
   align-items: center;

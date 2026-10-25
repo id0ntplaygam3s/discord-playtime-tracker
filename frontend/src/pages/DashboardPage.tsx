@@ -15,6 +15,8 @@ import { DateRangeKey, RankedPlaytime } from '../types';
 import { activityRangeOptions, allGamesRangeOptions, selectedGameRangeOptions } from '../utils/dateRanges';
 import { formatDuration } from '../utils/time';
 
+const REFRESH_INTERVAL = 30000;
+
 function describeRangeWindow(range: DateRangeKey, from?: string, to?: string): string {
   const today = dayjs().endOf('day');
   if (range === 'all') return 'All time';
@@ -37,9 +39,9 @@ export default function DashboardPage() {
   const { addToast } = useToast();
   const [selectedGameId, setSelectedGameId] = useState<number>(0);
   const [selectedGameUsers, setSelectedGameUsers] = useState<any[]>([]);
-  const [selectedGameActivityRange, setSelectedGameActivityRange] = useState<DateRangeKey>('all');
-  const [allGamesActivityRange, setAllGamesActivityRange] = useState<DateRangeKey>('30d');
-  const [activityOverTimeRange, setActivityOverTimeRange] = useState<DateRangeKey>('30d');
+  const [selectedGameActivityRange, setSelectedGameActivityRange] = useState<DateRangeKey>('7d');
+  const [allGamesActivityRange, setAllGamesActivityRange] = useState<DateRangeKey>('7d');
+  const [activityOverTimeRange, setActivityOverTimeRange] = useState<DateRangeKey>('7d');
   const [selectedFrom, setSelectedFrom] = useState('');
   const [selectedTo, setSelectedTo] = useState('');
   const [allGamesFrom, setAllGamesFrom] = useState('');
@@ -69,9 +71,30 @@ export default function DashboardPage() {
   );
 
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [countdown, setCountdown] = useState<number>(REFRESH_INTERVAL / 1000);
+
+  useEffect(() => {
+    if (!autoRefreshEnabled) {
+      setCountdown(REFRESH_INTERVAL / 1000);
+      return;
+    }
+
+    setCountdown(REFRESH_INTERVAL / 1000);
+    const timer = setInterval(() => {
+      setCountdown((prev) => {
+        if (prev <= 1) {
+          return REFRESH_INTERVAL / 1000;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [autoRefreshEnabled]);
 
   const handleRefresh = useCallback(async () => {
     setLastUpdated(new Date());
+    setCountdown(REFRESH_INTERVAL / 1000);
   }, []);
 
   const handleExportCSV = useCallback(() => {
@@ -316,6 +339,9 @@ export default function DashboardPage() {
             {lastUpdated && (
               <span className="last-updated">
                 {' '}· Last updated {dayjs(lastUpdated).fromNow()}
+                {autoRefreshEnabled && (
+                  <span className="countdown"> · Refreshing in {countdown}s</span>
+                )}
               </span>
             )}
           </p>
