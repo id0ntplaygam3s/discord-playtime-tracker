@@ -375,7 +375,10 @@ export default function DashboardPage() {
         <TopGamesChart
           data={games}
           selectedGameId={selectedGameId}
-          onGameSelect={setSelectedGameId}
+          onGameSelect={(gameId) => {
+            setSelectedGameId(gameId);
+            setSelectedGameActivityRange('all');
+          }}
           splitMode={splitByPlayer}
           splitRows={splitRows}
           splitPlayers={splitPlayers}
@@ -485,7 +488,10 @@ export default function DashboardPage() {
           <TopGamesChart
             data={activityTopGames}
             selectedGameId={selectedGameId}
-            onGameSelect={setSelectedGameId}
+            onGameSelect={(gameId) => {
+              setSelectedGameId(gameId);
+              setSelectedGameActivityRange(activityOverTimeRange);
+            }}
             title="Most Played Games In Timeline Range"
             height={activityTopGamesLoading ? 180 : Math.max(220, activityTopGames.length * 26 + 110)}
             showValues={showValues}
