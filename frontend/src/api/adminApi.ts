@@ -165,7 +165,7 @@ export async function csvImport(payload: {
   guild_id: number;
   all_or_nothing: boolean;
   import_mode: 'add' | 'overwrite';
-  rows: any[];
+  rows: Array<Record<string, unknown>>;
 }) {
   const { data } = await client.post('/management/csv/import', payload);
   return data;

@@ -83,3 +83,64 @@ export interface MergeSuggestionRow {
   reason: string;
   score: number;
 }
+
+export interface GameProfile {
+  id: number;
+  display_name: string;
+  icon_url: string | null;
+  automatic_seconds: number;
+  historical_seconds: number;
+  adjustment_seconds: number;
+  total_seconds: number;
+  unique_players: number;
+}
+
+export interface UserProfile {
+  id: number;
+  display_name: string;
+  username: string;
+  avatar_url: string | null;
+  automatic_seconds: number;
+  historical_seconds: number;
+  adjustment_seconds: number;
+  total_seconds: number;
+}
+
+export interface SystemStatus {
+  status: string;
+  discord_status: string;
+  database_status: string;
+  bot_uptime_seconds: number | null;
+  last_discord_event_at: string | null;
+  last_database_write_at: string | null;
+  active_sessions: number;
+  app_version: string;
+}
+
+export interface UserGameBreakdown {
+  id: number;
+  name: string;
+  total_seconds: number;
+}
+
+export interface UserSession {
+  session_id: number;
+  game: string;
+  started_at: string;
+  ended_at: string | null;
+}
+
+export interface GameSession {
+  session_id: number;
+  user: string;
+  started_at: string;
+  ended_at: string | null;
+}
+
+export interface ActiveSession {
+  session_id: number;
+  user_id: number;
+  user_name: string;
+  game_name: string;
+  started_at: string;
+}

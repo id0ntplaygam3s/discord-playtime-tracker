@@ -2,11 +2,12 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import desc, func
 from sqlalchemy.orm import Session
 
-from app.api.deps import require_permission
+from app.api.deps import AuthUser, audit_actor_fields, require_admin, require_permission
 from app.core.permissions import PermissionCode
 from app.api.guilds import resolve_guild_id
 from app.db.session import get_db
-from app.models import ActivitySession, Game, ManualPlaytime, PlaytimeAdjustment, User
+from app.models import ActivitySession, AuditAction, Game, ManualPlaytime, PlaytimeAdjustment, User
+from app.services.session_service import write_audit_log
 
 router = APIRouter(prefix="/users", tags=["users"])
 
@@ -180,7 +181,7 @@ def user_sessions(
 def delete_user(
     user_id: int,
     guild_id: int = Query(default=0),
-    _=Depends(require_permission(PermissionCode.USERS_MANAGE)),
+    admin: AuthUser = Depends(require_admin),
     db: Session = Depends(get_db),
 ):
     guild_id = resolve_guild_id(db, guild_id)
@@ -188,6 +189,18 @@ def delete_user(
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
+    write_audit_log(
+        db,
+        guild_id=guild_id,
+        action=AuditAction.user_account_changed,
+        **audit_actor_fields(admin),
+        target_user_id=user.id,
+        target_game_id=None,
+        change_seconds=None,
+        reason=f"User deleted: {user.display_name}",
+        commit=False,
+    )
+
     db.delete(user)
     db.commit()
-    return {"ok": True, "deleted_user_id": user_id}
+    return {"ok": True, "deleted_user_id": user.id, "deleted_display_name": user.display_name}

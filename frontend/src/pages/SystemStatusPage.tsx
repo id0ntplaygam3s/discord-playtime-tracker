@@ -3,10 +3,11 @@ import dayjs from 'dayjs';
 import { getSystemStatus } from '../api/adminApi';
 import { useAppPreferences } from '../context/AppPreferencesContext';
 import { formatDuration } from '../utils/time';
+import { SystemStatus } from '../types';
 
 export default function SystemStatusPage() {
   const { autoRefreshEnabled } = useAppPreferences();
-  const [status, setStatus] = useState<any>(null);
+  const [status, setStatus] = useState<SystemStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {

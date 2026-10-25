@@ -1,10 +1,11 @@
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
+import { ActiveSession } from '../types';
 
 dayjs.extend(relativeTime);
 
 interface CurrentSessionsProps {
-  sessions: any[];
+  sessions: ActiveSession[];
   title?: string;
   compact?: boolean;
 }

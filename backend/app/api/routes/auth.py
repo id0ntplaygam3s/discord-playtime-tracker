@@ -1,13 +1,14 @@
 from datetime import datetime, timedelta, timezone
 import secrets
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 
 from app.api.deps import AuthUser, audit_actor_fields, get_current_user, require_admin
 from app.core.permissions import PermissionCode
 from app.core.config import get_settings
 from app.core.security import create_access_token, hash_password, verify_password
+from app.core.rate_limiter import check_rate_limiter, RateLimitExceeded, _auth_limiter, _registration_limiter
 from app.db.session import get_db
 from app.models import (
     AccountStatus,
@@ -64,7 +65,17 @@ def _issue_account_token(account: UserAccount, user: User) -> str:
 
 
 @router.post("/login", response_model=TokenResponse)
-def login(payload: LoginRequest, db: Session = Depends(get_db)) -> TokenResponse:
+def login(request: Request, payload: LoginRequest, db: Session = Depends(get_db)) -> TokenResponse:
+    client_ip = request.client.host if request.client else "unknown"
+    try:
+        check_rate_limiter(f"login:{client_ip}", _auth_limiter)
+    except RateLimitExceeded as e:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=str(e),
+            headers={"Retry-After": str(e.retry_after)},
+        )
+
     user = db.query(AdminUser).filter(AdminUser.username == payload.username, AdminUser.is_active.is_(True)).first()
     if not user or not verify_password(payload.password, user.password_hash):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
@@ -80,7 +91,17 @@ def login(payload: LoginRequest, db: Session = Depends(get_db)) -> TokenResponse
 
 
 @router.post("/account-login", response_model=TokenResponse)
-def account_login(payload: AccountLoginRequest, db: Session = Depends(get_db)) -> TokenResponse:
+def account_login(request: Request, payload: AccountLoginRequest, db: Session = Depends(get_db)) -> TokenResponse:
+    client_ip = request.client.host if request.client else "unknown"
+    try:
+        check_rate_limiter(f"account-login:{client_ip}", _auth_limiter)
+    except RateLimitExceeded as e:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=str(e),
+            headers={"Retry-After": str(e.retry_after)},
+        )
+
     account_row = (
         db.query(UserAccount, User)
         .join(User, User.id == UserAccount.user_id)
@@ -161,7 +182,17 @@ def account_options(db: Session = Depends(get_db)):
 
 
 @router.post("/register", response_model=RegisterResponse)
-def register(payload: RegisterRequest, db: Session = Depends(get_db)) -> RegisterResponse:
+def register(request: Request, payload: RegisterRequest, db: Session = Depends(get_db)) -> RegisterResponse:
+    client_ip = request.client.host if request.client else "unknown"
+    try:
+        check_rate_limiter(f"register:{client_ip}", _registration_limiter)
+    except RateLimitExceeded as e:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=str(e),
+            headers={"Retry-After": str(e.retry_after)},
+        )
+
     registration_enabled = bool(get_setting(db, "registration_enabled", True))
     if not registration_enabled:
         raise HTTPException(status_code=403, detail="Registration is disabled")

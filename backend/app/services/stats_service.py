@@ -47,19 +47,28 @@ def _source_sums(db: Session, guild_id: int, from_dt: datetime | None = None, to
         .scalar()
     )
 
-    hist_filters = [ManualPlaytime.guild_id == guild_id, ManualPlaytime.deleted_at.is_(None)]
-    if from_dt is not None:
-        hist_filters.append(ManualPlaytime.created_at >= from_dt)
-    if to_dt is not None:
-        hist_filters.append(ManualPlaytime.created_at < to_dt)
-    historical = db.query(func.coalesce(func.sum(ManualPlaytime.duration_seconds), 0)).filter(*hist_filters).scalar()
+    # Manual playtime and adjustments have no known dates, so they are only
+    # included when the view has no date filter (i.e. "All Time").
+    include_manual = from_dt is None and to_dt is None
 
-    adj_filters = [PlaytimeAdjustment.guild_id == guild_id]
-    if from_dt is not None:
-        adj_filters.append(PlaytimeAdjustment.created_at >= from_dt)
-    if to_dt is not None:
-        adj_filters.append(PlaytimeAdjustment.created_at < to_dt)
-    adjustments = db.query(func.coalesce(func.sum(PlaytimeAdjustment.adjustment_seconds), 0)).filter(*adj_filters).scalar()
+    if include_manual:
+        historical = db.query(
+            func.coalesce(func.sum(ManualPlaytime.duration_seconds), 0)
+        ).filter(
+            ManualPlaytime.guild_id == guild_id,
+            ManualPlaytime.deleted_at.is_(None),
+        ).scalar()
+    else:
+        historical = 0
+
+    if include_manual:
+        adjustments = db.query(
+            func.coalesce(func.sum(PlaytimeAdjustment.adjustment_seconds), 0)
+        ).filter(
+            PlaytimeAdjustment.guild_id == guild_id,
+        ).scalar()
+    else:
+        adjustments = 0
 
     return int(automatic or 0), int(historical or 0), int(adjustments or 0)
 
@@ -112,37 +121,49 @@ def ranked_games(
         .subquery()
     )
 
-    hist_filters = [ManualPlaytime.guild_id == guild_id, ManualPlaytime.deleted_at.is_(None)]
-    if from_dt is not None:
-        hist_filters.append(ManualPlaytime.created_at >= from_dt)
-    if to_dt is not None:
-        hist_filters.append(ManualPlaytime.created_at < to_dt)
-    hist_q = (
-        db.query(
-            func.coalesce(Game.canonical_game_id, Game.id).label("game_id"),
-            func.coalesce(func.sum(ManualPlaytime.duration_seconds), 0).label("hist_seconds"),
-        )
-        .join(Game, Game.id == ManualPlaytime.game_id)
-        .filter(*hist_filters)
-        .group_by(func.coalesce(Game.canonical_game_id, Game.id))
-        .subquery()
-    )
+    # Manual playtime and adjustments have no known dates, so they are only
+    # included when the view has no date filter (i.e. "All Time").
+    include_manual = from_dt is None and to_dt is None
 
-    adj_filters = [PlaytimeAdjustment.guild_id == guild_id]
-    if from_dt is not None:
-        adj_filters.append(PlaytimeAdjustment.created_at >= from_dt)
-    if to_dt is not None:
-        adj_filters.append(PlaytimeAdjustment.created_at < to_dt)
-    adj_q = (
-        db.query(
-            func.coalesce(Game.canonical_game_id, Game.id).label("game_id"),
-            func.coalesce(func.sum(PlaytimeAdjustment.adjustment_seconds), 0).label("adj_seconds"),
+    if include_manual:
+        hist_q = (
+            db.query(
+                func.coalesce(Game.canonical_game_id, Game.id).label("game_id"),
+                func.coalesce(func.sum(ManualPlaytime.duration_seconds), 0).label("hist_seconds"),
+            )
+            .join(Game, Game.id == ManualPlaytime.game_id)
+            .filter(ManualPlaytime.guild_id == guild_id, ManualPlaytime.deleted_at.is_(None))
+            .group_by(func.coalesce(Game.canonical_game_id, Game.id))
+            .subquery()
         )
-        .join(Game, Game.id == PlaytimeAdjustment.game_id)
-        .filter(*adj_filters)
-        .group_by(func.coalesce(Game.canonical_game_id, Game.id))
-        .subquery()
-    )
+    else:
+        hist_q = (
+            db.query(
+                func.literal(0).label("game_id"),
+                func.literal(0).label("hist_seconds"),
+            ).filter(func.literal(0) == 1)
+            .subquery()
+        )
+
+    if include_manual:
+        adj_q = (
+            db.query(
+                func.coalesce(Game.canonical_game_id, Game.id).label("game_id"),
+                func.coalesce(func.sum(PlaytimeAdjustment.adjustment_seconds), 0).label("adj_seconds"),
+            )
+            .join(Game, Game.id == PlaytimeAdjustment.game_id)
+            .filter(PlaytimeAdjustment.guild_id == guild_id)
+            .group_by(func.coalesce(Game.canonical_game_id, Game.id))
+            .subquery()
+        )
+    else:
+        adj_q = (
+            db.query(
+                func.literal(0).label("game_id"),
+                func.literal(0).label("adj_seconds"),
+            ).filter(func.literal(0) == 1)
+            .subquery()
+        )
 
     total_expr = func.coalesce(auto_q.c.auto_seconds, 0) + func.coalesce(hist_q.c.hist_seconds, 0) + func.coalesce(adj_q.c.adj_seconds, 0)
     if source == "automatic":
@@ -184,35 +205,47 @@ def ranked_users(
         .subquery()
     )
 
-    hist_filters = [ManualPlaytime.guild_id == guild_id, ManualPlaytime.deleted_at.is_(None)]
-    if from_dt is not None:
-        hist_filters.append(ManualPlaytime.created_at >= from_dt)
-    if to_dt is not None:
-        hist_filters.append(ManualPlaytime.created_at < to_dt)
-    hist_q = (
-        db.query(
-            ManualPlaytime.user_id.label("user_id"),
-            func.coalesce(func.sum(ManualPlaytime.duration_seconds), 0).label("hist_seconds"),
-        )
-        .filter(*hist_filters)
-        .group_by(ManualPlaytime.user_id)
-        .subquery()
-    )
+    # Manual playtime and adjustments have no known dates, so they are only
+    # included when the view has no date filter (i.e. "All Time").
+    include_manual = from_dt is None and to_dt is None
 
-    adj_filters = [PlaytimeAdjustment.guild_id == guild_id]
-    if from_dt is not None:
-        adj_filters.append(PlaytimeAdjustment.created_at >= from_dt)
-    if to_dt is not None:
-        adj_filters.append(PlaytimeAdjustment.created_at < to_dt)
-    adj_q = (
-        db.query(
-            PlaytimeAdjustment.user_id.label("user_id"),
-            func.coalesce(func.sum(PlaytimeAdjustment.adjustment_seconds), 0).label("adj_seconds"),
+    if include_manual:
+        hist_q = (
+            db.query(
+                ManualPlaytime.user_id.label("user_id"),
+                func.coalesce(func.sum(ManualPlaytime.duration_seconds), 0).label("hist_seconds"),
+            )
+            .filter(ManualPlaytime.guild_id == guild_id, ManualPlaytime.deleted_at.is_(None))
+            .group_by(ManualPlaytime.user_id)
+            .subquery()
         )
-        .filter(*adj_filters)
-        .group_by(PlaytimeAdjustment.user_id)
-        .subquery()
-    )
+    else:
+        hist_q = (
+            db.query(
+                func.literal(0).label("user_id"),
+                func.literal(0).label("hist_seconds"),
+            ).filter(func.literal(0) == 1)
+            .subquery()
+        )
+
+    if include_manual:
+        adj_q = (
+            db.query(
+                PlaytimeAdjustment.user_id.label("user_id"),
+                func.coalesce(func.sum(PlaytimeAdjustment.adjustment_seconds), 0).label("adj_seconds"),
+            )
+            .filter(PlaytimeAdjustment.guild_id == guild_id)
+            .group_by(PlaytimeAdjustment.user_id)
+            .subquery()
+        )
+    else:
+        adj_q = (
+            db.query(
+                func.literal(0).label("user_id"),
+                func.literal(0).label("adj_seconds"),
+            ).filter(func.literal(0) == 1)
+            .subquery()
+        )
 
     total_expr = func.coalesce(auto_q.c.auto_seconds, 0) + func.coalesce(hist_q.c.hist_seconds, 0) + func.coalesce(adj_q.c.adj_seconds, 0)
     if source == "automatic":
@@ -264,41 +297,63 @@ def ranked_users_for_game(
         .subquery()
     )
 
-    hist_filters = [
-        ManualPlaytime.guild_id == guild_id,
-        ManualPlaytime.deleted_at.is_(None),
-        func.coalesce(Game.canonical_game_id, Game.id) == game_id,
-    ]
-    if from_dt is not None:
-        hist_filters.append(ManualPlaytime.created_at >= from_dt)
-    if to_dt is not None:
-        hist_filters.append(ManualPlaytime.created_at < to_dt)
-    hist_q = (
-        db.query(
-            ManualPlaytime.user_id.label("user_id"),
-            func.coalesce(func.sum(ManualPlaytime.duration_seconds), 0).label("hist_seconds"),
-        )
-        .join(Game, Game.id == ManualPlaytime.game_id)
-        .filter(*hist_filters)
-        .group_by(ManualPlaytime.user_id)
-        .subquery()
-    )
+    # Manual playtime and adjustments have no known dates, so they are only
+    # included when the view has no date filter (i.e. "All Time").
+    include_manual = from_dt is None and to_dt is None
 
-    adj_filters = [PlaytimeAdjustment.guild_id == guild_id, func.coalesce(Game.canonical_game_id, Game.id) == game_id]
-    if from_dt is not None:
-        adj_filters.append(PlaytimeAdjustment.created_at >= from_dt)
-    if to_dt is not None:
-        adj_filters.append(PlaytimeAdjustment.created_at < to_dt)
-    adj_q = (
-        db.query(
-            PlaytimeAdjustment.user_id.label("user_id"),
-            func.coalesce(func.sum(PlaytimeAdjustment.adjustment_seconds), 0).label("adj_seconds"),
+    if include_manual:
+        hist_filters = [
+            ManualPlaytime.guild_id == guild_id,
+            ManualPlaytime.deleted_at.is_(None),
+            func.coalesce(Game.canonical_game_id, Game.id) == game_id,
+        ]
+    else:
+        hist_filters = [func.literal(0) == 1]
+
+    if include_manual:
+        hist_q = (
+            db.query(
+                ManualPlaytime.user_id.label("user_id"),
+                func.coalesce(func.sum(ManualPlaytime.duration_seconds), 0).label("hist_seconds"),
+            )
+            .join(Game, Game.id == ManualPlaytime.game_id)
+            .filter(*hist_filters)
+            .group_by(ManualPlaytime.user_id)
+            .subquery()
         )
-        .join(Game, Game.id == PlaytimeAdjustment.game_id)
-        .filter(*adj_filters)
-        .group_by(PlaytimeAdjustment.user_id)
-        .subquery()
-    )
+    else:
+        hist_q = (
+            db.query(
+                func.literal(0).label("user_id"),
+                func.literal(0).label("hist_seconds"),
+            ).filter(func.literal(0) == 1)
+            .subquery()
+        )
+
+    if include_manual:
+        adj_filters = [PlaytimeAdjustment.guild_id == guild_id, func.coalesce(Game.canonical_game_id, Game.id) == game_id]
+    else:
+        adj_filters = [func.literal(0) == 1]
+
+    if include_manual:
+        adj_q = (
+            db.query(
+                PlaytimeAdjustment.user_id.label("user_id"),
+                func.coalesce(func.sum(PlaytimeAdjustment.adjustment_seconds), 0).label("adj_seconds"),
+            )
+            .join(Game, Game.id == PlaytimeAdjustment.game_id)
+            .filter(*adj_filters)
+            .group_by(PlaytimeAdjustment.user_id)
+            .subquery()
+        )
+    else:
+        adj_q = (
+            db.query(
+                func.literal(0).label("user_id"),
+                func.literal(0).label("adj_seconds"),
+            ).filter(func.literal(0) == 1)
+            .subquery()
+        )
 
     rows = (
         db.query(

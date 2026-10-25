@@ -2,14 +2,15 @@ import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import client from '../api/client';
 import { formatDuration, formatSignedDuration } from '../utils/time';
+import { GameProfile, UserGameBreakdown, GameSession } from '../types';
 
 export default function GameProfilePage() {
   const { gameId } = useParams();
   const id = Number(gameId || 0);
   const guildId = Number(import.meta.env.VITE_GUILD_ID || 0);
-  const [profile, setProfile] = useState<any>(null);
-  const [users, setUsers] = useState<any[]>([]);
-  const [sessions, setSessions] = useState<any[]>([]);
+  const [profile, setProfile] = useState<GameProfile | null>(null);
+  const [users, setUsers] = useState<UserGameBreakdown[]>([]);
+  const [sessions, setSessions] = useState<GameSession[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
