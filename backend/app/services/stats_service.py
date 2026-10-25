@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Literal
 
 from sqlalchemy import func, text
 from sqlalchemy.orm import Session
-from sqlalchemy.types import Numeric, Boolean
+from sqlalchemy.types import Boolean, Numeric
 
 from app.core.config import get_settings
 from app.models import ActivitySession, Game, ManualPlaytime, PlaytimeAdjustment, User
@@ -41,7 +41,7 @@ def _automatic_overlap_filters(now_dt: datetime, from_dt: datetime | None = None
 
 
 def _source_sums(db: Session, guild_id: int, from_dt: datetime | None = None, to_dt: datetime | None = None):
-    now_dt = datetime.now(timezone.utc)
+    now_dt = datetime.now(UTC)
     automatic = (
         db.query(func.coalesce(func.sum(_automatic_duration_expr(db, now_dt, from_dt, to_dt)), 0))
         .filter(ActivitySession.guild_id == guild_id, *_automatic_overlap_filters(now_dt, from_dt, to_dt))
@@ -110,7 +110,7 @@ def ranked_games(
     from_dt: datetime | None = None,
     to_dt: datetime | None = None,
 ) -> list[dict]:
-    now_dt = datetime.now(timezone.utc)
+    now_dt = datetime.now(UTC)
     auto_q = (
         db.query(
             func.coalesce(Game.canonical_game_id, Game.id).label("game_id"),
@@ -197,7 +197,7 @@ def ranked_users(
     from_dt: datetime | None = None,
     to_dt: datetime | None = None,
 ) -> list[dict]:
-    now_dt = datetime.now(timezone.utc)
+    now_dt = datetime.now(UTC)
     auto_q = (
         db.query(
             ActivitySession.user_id.label("user_id"),
@@ -286,7 +286,7 @@ def ranked_users_for_game(
     from_dt: datetime | None = None,
     to_dt: datetime | None = None,
 ) -> list[dict]:
-    now_dt = datetime.now(timezone.utc)
+    now_dt = datetime.now(UTC)
     auto_q = (
         db.query(
             ActivitySession.user_id.label("user_id"),

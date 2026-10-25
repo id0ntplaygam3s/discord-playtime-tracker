@@ -3,10 +3,17 @@ from sqlalchemy import desc, func
 from sqlalchemy.orm import Session
 
 from app.api.deps import AuthUser, audit_actor_fields, require_admin, require_permission
-from app.core.permissions import PermissionCode
 from app.api.guilds import resolve_guild_id
+from app.core.permissions import PermissionCode
 from app.db.session import get_db
-from app.models import ActivitySession, AuditAction, Game, ManualPlaytime, PlaytimeAdjustment, User
+from app.models import (
+    ActivitySession,
+    AuditAction,
+    Game,
+    ManualPlaytime,
+    PlaytimeAdjustment,
+    User,
+)
 from app.services.session_service import write_audit_log
 
 router = APIRouter(prefix="/users", tags=["users"])

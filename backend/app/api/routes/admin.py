@@ -1,13 +1,12 @@
-from datetime import datetime, timezone
-from datetime import timedelta
+from datetime import UTC, datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.api.deps import AuthUser, audit_actor_fields, require_admin
+from app.api.guilds import resolve_guild_id
 from app.core.permissions import PermissionCode
 from app.core.security import hash_password
-from app.api.guilds import resolve_guild_id
 from app.db.session import get_db
 from app.models import (
     AccountStatus,
@@ -195,9 +194,9 @@ def admin_change_status(
         account.disabled_at = None
         account.disabled_by_admin_user_id = None
     elif target_status == AccountStatus.locked:
-        account.locked_until = datetime.now(timezone.utc) + timedelta(minutes=30)
+        account.locked_until = datetime.now(UTC) + timedelta(minutes=30)
     elif target_status == AccountStatus.disabled:
-        account.disabled_at = datetime.now(timezone.utc)
+        account.disabled_at = datetime.now(UTC)
         account.disabled_by_admin_user_id = user.admin_user_id
 
     write_audit_log(
@@ -502,7 +501,7 @@ def update_settings(payload: dict, user: AuthUser = Depends(require_admin), db: 
         target_game_id=None,
         change_seconds=None,
         reason="Runtime settings updated",
-        metadata_json={"keys": sorted([str(k) for k in payload.keys()])},
+        metadata_json={"keys": sorted([str(k) for k in payload])},
         commit=False,
     )
     db.commit()

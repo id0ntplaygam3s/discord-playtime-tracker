@@ -1,7 +1,6 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, Request
-from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
@@ -24,7 +23,7 @@ def bot_status(request: Request, db: Session = Depends(get_db)):
 
     uptime = None
     if hasattr(manager, 'started_at') and manager.started_at:
-        uptime = int((datetime.now(timezone.utc) - manager.started_at).total_seconds())
+        uptime = int((datetime.now(UTC) - manager.started_at).total_seconds())
 
     last_event = None
     if hasattr(manager, 'last_event_at') and manager.last_event_at:

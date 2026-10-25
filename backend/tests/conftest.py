@@ -5,19 +5,19 @@ import os
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
-from sqlalchemy.pool import StaticPool
 from sqlalchemy.orm import Session, sessionmaker
+from sqlalchemy.pool import StaticPool
 
 os.environ.setdefault("DATABASE_URL", "sqlite+pysqlite:///:memory:")
 os.environ.setdefault("ADMIN_PASSWORD", "test-password")
 os.environ.setdefault("SECRET_KEY", "test-secret")
 os.environ.setdefault("TESTING", "1")
 
+from app.core.security import hash_password
 from app.db.base import Base
 from app.db.session import get_db
 from app.main import app
 from app.models import AdminUser, Guild, Role
-from app.core.security import hash_password
 
 
 @pytest.fixture()

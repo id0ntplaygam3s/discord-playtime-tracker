@@ -5,7 +5,6 @@ import sys
 
 import structlog
 
-
 SENSITIVE_KEYS = {"password", "token", "secret", "authorization"}
 
 

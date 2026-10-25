@@ -5,9 +5,9 @@ Revises: 0002_accounts_rbac_settings
 Create Date: 2026-09-15
 """
 
-from alembic import op
 import sqlalchemy as sa
 
+from alembic import op
 
 revision = "0003_game_canonical_audit_actor"
 down_revision = "0002_accounts_rbac_settings"

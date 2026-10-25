@@ -1,16 +1,20 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy.orm import Session
 
 from app.models import ActivitySession, AuditAction, AuditLog, Game, Guild, User
-from app.services.game_identity_service import add_alias_if_missing, find_game_by_name_or_alias, resolve_canonical_game
+from app.services.game_identity_service import (
+    add_alias_if_missing,
+    find_game_by_name_or_alias,
+    resolve_canonical_game,
+)
 from app.services.normalization import normalize_game_name
 
 
 def now_utc() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 def get_or_create_user(db: Session, guild_id: int, discord_user_id: int, username: str, display_name: str, avatar_url: str | None) -> User:
@@ -118,8 +122,7 @@ def close_active_session(db: Session, guild_id: int, user_id: int, ended_at: dat
     if not active:
         return None
     active.ended_at = ended_at or now_utc()
-    if active.ended_at < active.started_at:
-        active.ended_at = active.started_at
+    active.ended_at = max(active.ended_at, active.started_at)
     db.commit()
     db.refresh(active)
     return active

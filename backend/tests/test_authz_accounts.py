@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 
 def _admin_header(client):
@@ -8,7 +8,7 @@ def _admin_header(client):
 
 
 def _register_account_for_user(client, db_session, user_name='User A', discord_user_id=6001):
-    from app.models import User, UserAccount, AccountStatus
+    from app.models import AccountStatus, User, UserAccount
 
     user = User(guild_id=1, discord_user_id=discord_user_id, username=user_name.lower().replace(' ', ''), display_name=user_name)
     db_session.add(user)
@@ -40,7 +40,7 @@ def test_registration_requires_known_discord_user(client):
 
 
 def test_registration_then_admin_approve_then_account_login(client, db_session):
-    from app.models import UserAccount, AccountStatus
+    from app.models import AccountStatus
 
     user, account = _register_account_for_user(client, db_session, user_name='User B', discord_user_id=6002)
 
@@ -74,11 +74,11 @@ def test_duplicate_registration_blocked(client, db_session):
 
 
 def test_locked_account_cannot_login(client, db_session):
-    from app.models import AccountStatus, UserAccount
+    from app.models import AccountStatus
 
     user, account = _register_account_for_user(client, db_session, user_name='User D', discord_user_id=6004)
     account.status = AccountStatus.active
-    account.locked_until = datetime.now(timezone.utc) + timedelta(minutes=10)
+    account.locked_until = datetime.now(UTC) + timedelta(minutes=10)
     account.status = AccountStatus.locked
     db_session.commit()
 
@@ -87,7 +87,7 @@ def test_locked_account_cannot_login(client, db_session):
 
 
 def test_user_can_manage_own_manual_but_not_others(client, db_session):
-    from app.models import Game, User, UserAccount, AppRole, AppRoleName, AccountStatus
+    from app.models import AccountStatus, AppRole, AppRoleName, Game, User, UserAccount
     from app.services.authz_service import ensure_roles_and_permissions
 
     owner = User(guild_id=1, discord_user_id=6005, username='owner', display_name='Owner')
@@ -153,7 +153,7 @@ def test_user_can_manage_own_manual_but_not_others(client, db_session):
 
 
 def test_custom_title_requires_override_flag(client, db_session):
-    from app.models import User, UserAccount, AppRole, AppRoleName, AccountStatus
+    from app.models import AccountStatus, AppRole, AppRoleName, User, UserAccount
     from app.services.authz_service import ensure_roles_and_permissions
 
     owner = User(guild_id=1, discord_user_id=6010, username='owner2', display_name='Owner Two')

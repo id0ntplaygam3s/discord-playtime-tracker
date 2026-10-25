@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import structlog
 from sqlalchemy.orm import Session
@@ -30,7 +30,7 @@ class BotManager:
             return
 
         self._bot = DiscordTrackerBot(self.settings, self)
-        self.started_at = datetime.now(timezone.utc)
+        self.started_at = datetime.now(UTC)
 
         db: Session = SessionLocal()
         try:
@@ -52,4 +52,4 @@ class BotManager:
         self.connected = connected
 
     def mark_event(self) -> None:
-        self.last_event_at = datetime.now(timezone.utc)
+        self.last_event_at = datetime.now(UTC)

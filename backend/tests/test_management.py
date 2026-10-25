@@ -1,5 +1,11 @@
+from datetime import UTC
+
 from app.models import ManualSource, User
-from app.services.management_service import create_adjustment, create_manual_playtime, set_absolute_total
+from app.services.management_service import (
+    create_adjustment,
+    create_manual_playtime,
+    set_absolute_total,
+)
 from app.services.playtime import total_seconds_for_user_game
 
 
@@ -10,8 +16,9 @@ def test_historical_automatic_adjustment_total(db_session):
     db_session.refresh(user)
 
     # Game id 1 is created in each test case for simplicity.
-    from app.models import Game, ActivitySession
-    from datetime import datetime, timedelta, timezone
+    from datetime import datetime, timedelta
+
+    from app.models import ActivitySession, Game
 
     game = Game(normalized_name="minecraft", display_name="Minecraft")
     db_session.add(game)
@@ -20,7 +27,7 @@ def test_historical_automatic_adjustment_total(db_session):
 
     create_manual_playtime(db_session, 1, user.id, game.id, 1240 * 3600, ManualSource.historical, "initial", 1)
 
-    start = datetime(2026, 9, 14, 10, 0, tzinfo=timezone.utc)
+    start = datetime(2026, 9, 14, 10, 0, tzinfo=UTC)
     db_session.add(ActivitySession(guild_id=1, user_id=user.id, game_id=game.id, started_at=start, ended_at=start + timedelta(hours=6)))
     db_session.commit()
 
@@ -63,7 +70,7 @@ def test_set_absolute_total(db_session):
 
 
 def test_spec_scenario_historical_plus_tracked_plus_adjustment(db_session):
-    from datetime import datetime, timedelta, timezone
+    from datetime import datetime, timedelta
 
     from app.models import ActivitySession, Game
 
@@ -76,7 +83,7 @@ def test_spec_scenario_historical_plus_tracked_plus_adjustment(db_session):
 
     create_manual_playtime(db_session, 1, user.id, game.id, 1240 * 3600, ManualSource.historical, "initial", 1)
 
-    monday = datetime(2026, 9, 7, 18, 0, tzinfo=timezone.utc)
+    monday = datetime(2026, 9, 7, 18, 0, tzinfo=UTC)
     tuesday = monday + timedelta(days=1)
     wednesday = monday + timedelta(days=2)
     db_session.add_all(
@@ -94,7 +101,7 @@ def test_spec_scenario_historical_plus_tracked_plus_adjustment(db_session):
 
 
 def test_spec_scenario_automatic_historical_negative_adjustment(db_session):
-    from datetime import datetime, timedelta, timezone
+    from datetime import datetime, timedelta
 
     from app.models import ActivitySession, Game
 
@@ -107,7 +114,7 @@ def test_spec_scenario_automatic_historical_negative_adjustment(db_session):
 
     create_manual_playtime(db_session, 1, user.id, game.id, 500 * 3600, ManualSource.historical, "initial", 1)
 
-    start = datetime(2026, 9, 7, 10, 0, tzinfo=timezone.utc)
+    start = datetime(2026, 9, 7, 10, 0, tzinfo=UTC)
     db_session.add(ActivitySession(guild_id=1, user_id=user.id, game_id=game.id, started_at=start, ended_at=start + timedelta(hours=100)))
     db_session.commit()
 

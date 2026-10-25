@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import discord
 import structlog
@@ -41,7 +41,7 @@ class DiscordTrackerBot(discord.Client):
             db = SessionLocal()
             try:
                 db_guild = get_or_create_guild(db, guild.id, guild.name)
-                now = datetime.now(timezone.utc)
+                now = datetime.now(UTC)
                 for member in guild.members:
                     if member.bot:
                         continue

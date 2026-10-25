@@ -1,11 +1,19 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
 import random
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy.orm import Session
 
-from app.models import ActivitySession, Game, Guild, ManualPlaytime, ManualSource, PlaytimeAdjustment, User
+from app.models import (
+    ActivitySession,
+    Game,
+    Guild,
+    ManualPlaytime,
+    ManualSource,
+    PlaytimeAdjustment,
+    User,
+)
 
 
 def seed_demo_data(db: Session, guild_id: int, days: int = 30) -> None:
@@ -40,7 +48,7 @@ def seed_demo_data(db: Session, guild_id: int, days: int = 30) -> None:
             db.flush()
         game_rows.append(game)
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     for day_offset in range(days):
         day = now - timedelta(days=day_offset)
         for user in users:

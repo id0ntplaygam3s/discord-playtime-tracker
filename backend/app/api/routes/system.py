@@ -1,12 +1,12 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, Request
-from sqlalchemy import func, select
+from sqlalchemy import func, select, exc as sqlalchemy_exc
 from sqlalchemy.orm import Session
 
 from app.api.deps import require_permission
-from app.core.permissions import PermissionCode
 from app.core.config import get_settings
+from app.core.permissions import PermissionCode
 from app.db.session import get_db
 from app.models import ActivitySession, Guild, ManualPlaytime, PlaytimeAdjustment
 from app.schemas.system import SystemStatus
@@ -30,12 +30,12 @@ def system_status(request: Request, _: object = Depends(require_permission(Permi
         )
     uptime = None
     if manager.started_at:
-        uptime = int((datetime.now(timezone.utc) - manager.started_at).total_seconds())
+        uptime = int((datetime.now(UTC) - manager.started_at).total_seconds())
 
     db_online = True
     try:
         db.execute(select(func.now()))
-    except Exception:
+    except sqlalchemy_exc.SQLAlchemyError:
         db_online = False
 
     last_session_write = None

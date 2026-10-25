@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import timezone
+from datetime import UTC
 
 from sqlalchemy import func
 from sqlalchemy.orm import Session
@@ -24,8 +24,8 @@ def total_seconds_for_user_game(db: Session, guild_id: int, user_id: int, game_i
     for started_at, ended_at in automatic_sessions:
         if ended_at is None:
             continue
-        start = started_at.astimezone(timezone.utc) if started_at.tzinfo else started_at.replace(tzinfo=timezone.utc)
-        end = ended_at.astimezone(timezone.utc) if ended_at.tzinfo else ended_at.replace(tzinfo=timezone.utc)
+        start = started_at.astimezone(UTC) if started_at.tzinfo else started_at.replace(tzinfo=UTC)
+        end = ended_at.astimezone(UTC) if ended_at.tzinfo else ended_at.replace(tzinfo=UTC)
         automatic += max(0, int((end - start).total_seconds()))
     historical = (
         db.query(func.coalesce(func.sum(ManualPlaytime.duration_seconds), 0))

@@ -3,7 +3,13 @@ from __future__ import annotations
 from sqlalchemy.orm import Session
 
 from app.core.permissions import PERMISSIONS
-from app.models import AppRole, AppRoleName, Permission, RolePermission, UserPermissionOverride
+from app.models import (
+    AppRole,
+    AppRoleName,
+    Permission,
+    RolePermission,
+    UserPermissionOverride,
+)
 
 
 def ensure_roles_and_permissions(db: Session) -> None:

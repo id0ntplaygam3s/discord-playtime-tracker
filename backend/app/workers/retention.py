@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import structlog
 from sqlalchemy.orm import Session
@@ -53,11 +53,11 @@ class RetentionWorker:
             wait_seconds = max(60, self.settings.retention_check_interval_minutes * 60)
             try:
                 await asyncio.wait_for(self._stop_event.wait(), timeout=wait_seconds)
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 continue
 
     def _cleanup_once(self) -> int:
-        cutoff = datetime.now(timezone.utc) - timedelta(days=self.settings.session_retention_days or 0)
+        cutoff = datetime.now(UTC) - timedelta(days=self.settings.session_retention_days or 0)
         db: Session = SessionLocal()
         try:
             deleted = (

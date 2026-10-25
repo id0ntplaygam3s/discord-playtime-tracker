@@ -5,8 +5,8 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.api.deps import require_permission
-from app.core.permissions import PermissionCode
 from app.api.guilds import resolve_guild_id
+from app.core.permissions import PermissionCode
 from app.db.session import get_db
 from app.models import ActivitySession, Game, ManualPlaytime, PlaytimeAdjustment, User
 

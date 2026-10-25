@@ -5,9 +5,9 @@ Revises: 0001_initial
 Create Date: 2026-09-15
 """
 
-from alembic import op
 import sqlalchemy as sa
 
+from alembic import op
 
 revision = "0002_accounts_rbac_settings"
 down_revision = "0001_initial"

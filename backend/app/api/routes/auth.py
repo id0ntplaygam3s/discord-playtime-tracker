@@ -1,14 +1,19 @@
-from datetime import datetime, timedelta, timezone
 import secrets
+from datetime import UTC, datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 
 from app.api.deps import AuthUser, audit_actor_fields, get_current_user, require_admin
-from app.core.permissions import PermissionCode
 from app.core.config import get_settings
+from app.core.permissions import PermissionCode
+from app.core.rate_limiter import (
+    RateLimitExceeded,
+    _auth_limiter,
+    _registration_limiter,
+    check_rate_limiter,
+)
 from app.core.security import create_access_token, hash_password, verify_password
-from app.core.rate_limiter import check_rate_limiter, RateLimitExceeded, _auth_limiter, _registration_limiter
 from app.db.session import get_db
 from app.models import (
     AccountStatus,
@@ -33,8 +38,7 @@ from app.schemas.auth import (
     RegisterResponse,
     TokenResponse,
 )
-from app.services.authz_service import resolve_permission
-from app.services.authz_service import ensure_roles_and_permissions
+from app.services.authz_service import ensure_roles_and_permissions, resolve_permission
 from app.services.session_service import write_audit_log
 from app.services.settings_service import get_setting
 
@@ -116,9 +120,9 @@ def account_login(request: Request, payload: AccountLoginRequest, db: Session = 
         raise HTTPException(status_code=403, detail="Account is pending approval")
     if account.status == AccountStatus.disabled:
         raise HTTPException(status_code=403, detail="Account is disabled")
-    if account.status == AccountStatus.locked and account.locked_until and account.locked_until > datetime.now(timezone.utc):
+    if account.status == AccountStatus.locked and account.locked_until and account.locked_until > datetime.now(UTC):
         raise HTTPException(status_code=403, detail="Account is locked")
-    if account.status == AccountStatus.locked and account.locked_until and account.locked_until <= datetime.now(timezone.utc):
+    if account.status == AccountStatus.locked and account.locked_until and account.locked_until <= datetime.now(UTC):
         account.status = AccountStatus.active
         account.locked_until = None
         account.failed_login_attempts = 0
@@ -129,12 +133,12 @@ def account_login(request: Request, payload: AccountLoginRequest, db: Session = 
         account.failed_login_attempts = int(account.failed_login_attempts or 0) + 1
         if account.failed_login_attempts >= max_attempts:
             account.status = AccountStatus.locked
-            account.locked_until = datetime.now(timezone.utc) + timedelta(minutes=lock_minutes)
+            account.locked_until = datetime.now(UTC) + timedelta(minutes=lock_minutes)
         db.commit()
         raise HTTPException(status_code=401, detail="Invalid credentials")
 
     account.failed_login_attempts = 0
-    account.last_login_at = datetime.now(timezone.utc)
+    account.last_login_at = datetime.now(UTC)
     if account.status != AccountStatus.active:
         account.status = AccountStatus.active
     db.commit()
@@ -285,7 +289,7 @@ def approve_registration(account_id: int, admin: AuthUser = Depends(require_admi
         raise HTTPException(status_code=400, detail="Registration is not pending")
 
     account.status = AccountStatus.active
-    account.approved_at = datetime.now(timezone.utc)
+    account.approved_at = datetime.now(UTC)
     account.approved_by_admin_user_id = admin.admin_user_id
     account.rejected_at = None
     account.rejected_by_admin_user_id = None
@@ -321,7 +325,7 @@ def reject_registration(account_id: int, admin: AuthUser = Depends(require_admin
         raise HTTPException(status_code=400, detail="Registration is not pending")
 
     account.status = AccountStatus.disabled
-    account.rejected_at = datetime.now(timezone.utc)
+    account.rejected_at = datetime.now(UTC)
     account.rejected_by_admin_user_id = admin.admin_user_id
 
     write_audit_log(
@@ -429,7 +433,7 @@ def approve_password_reset(request_id: int, admin: AuthUser = Depends(require_ad
     req.token_hash = hash_password(token)
     req.status = PasswordResetStatus.approved
     req.approved_by_admin_user_id = admin.admin_user_id
-    req.expires_at = datetime.now(timezone.utc) + timedelta(hours=1)
+    req.expires_at = datetime.now(UTC) + timedelta(hours=1)
 
     write_audit_log(
         db,
@@ -452,7 +456,7 @@ def approve_password_reset(request_id: int, admin: AuthUser = Depends(require_ad
 def complete_password_reset(payload: PasswordResetCompleteRequest, db: Session = Depends(get_db)):
     _validate_password(db, payload.new_password, payload.confirm_password)
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     rows = (
         db.query(PasswordResetRequest, UserAccount, User)
         .join(UserAccount, UserAccount.id == PasswordResetRequest.account_id)

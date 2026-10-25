@@ -1,12 +1,12 @@
 import { Bar, BarChart, Cell, LabelList, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
-import { RankedPlaytime } from '../types';
+import { RankedPlaytime, GameUserPlaytime } from '../types';
 import { formatDuration } from '../utils/time';
 
 const truncate = (label: string, max = 22) => (label.length <= max ? label : `${label.slice(0, max - 1)}...`);
 const formatLabelDuration = (value: unknown) => formatDuration(Number(value || 0));
 
 interface TopUsersChartProps {
-  data: RankedPlaytime[];
+  data: Array<RankedPlaytime | GameUserPlaytime & { avatar_url?: string | null }>;
   title?: string;
   height?: number;
   showValues?: boolean;

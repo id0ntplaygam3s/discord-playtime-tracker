@@ -5,9 +5,9 @@ Revises:
 Create Date: 2026-09-14
 """
 
-from alembic import op
 import sqlalchemy as sa
 
+from alembic import op
 
 revision = "0001_initial"
 down_revision = None
@@ -29,7 +29,6 @@ AUDIT_ACTION_VALUES = (
 
 
 def upgrade() -> None:
-    pass
 
     op.create_table(
         "guilds",
@@ -193,4 +192,3 @@ def downgrade() -> None:
     op.drop_table("admin_users")
     op.drop_table("guilds")
 
-    pass

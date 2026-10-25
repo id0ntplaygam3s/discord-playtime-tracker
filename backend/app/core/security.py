@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from jose import JWTError, jwt
@@ -24,7 +24,7 @@ def create_access_token(
     expires_minutes: int,
     extra_claims: dict[str, Any] | None = None,
 ) -> str:
-    expire = datetime.now(timezone.utc) + timedelta(minutes=expires_minutes)
+    expire = datetime.now(UTC) + timedelta(minutes=expires_minutes)
     payload = {"sub": subject, "exp": expire}
     if extra_claims:
         payload.update(extra_claims)

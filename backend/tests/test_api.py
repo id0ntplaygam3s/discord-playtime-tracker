@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 
 def _auth_header(client):
@@ -66,7 +66,14 @@ def test_user_profile_is_guild_scoped(client, db_session):
 
 
 def test_user_games_aggregation_no_overcount(client, db_session):
-    from app.models import ActivitySession, Game, ManualPlaytime, ManualSource, PlaytimeAdjustment, User
+    from app.models import (
+        ActivitySession,
+        Game,
+        ManualPlaytime,
+        ManualSource,
+        PlaytimeAdjustment,
+        User,
+    )
 
     headers = _auth_header(client)
     user = User(guild_id=1, discord_user_id=7777, username='sam', display_name='Sam')
@@ -76,7 +83,7 @@ def test_user_games_aggregation_no_overcount(client, db_session):
     db_session.refresh(user)
     db_session.refresh(game)
 
-    start = datetime(2026, 9, 10, 10, 0, tzinfo=timezone.utc)
+    start = datetime(2026, 9, 10, 10, 0, tzinfo=UTC)
     db_session.add(
         ActivitySession(
             guild_id=1,
@@ -127,7 +134,7 @@ def test_game_profile_is_guild_scoped(client, db_session):
     db_session.refresh(user)
     db_session.refresh(game)
 
-    start = datetime(2026, 9, 10, 12, 0, tzinfo=timezone.utc)
+    start = datetime(2026, 9, 10, 12, 0, tzinfo=UTC)
     db_session.add(
         ActivitySession(
             guild_id=1,
@@ -157,7 +164,7 @@ def test_game_alias_create_and_list(client, db_session):
     db_session.refresh(user)
     db_session.refresh(game)
 
-    start = datetime(2026, 9, 10, 12, 0, tzinfo=timezone.utc)
+    start = datetime(2026, 9, 10, 12, 0, tzinfo=UTC)
     db_session.add(
         ActivitySession(
             guild_id=1,
@@ -182,7 +189,14 @@ def test_game_alias_create_and_list(client, db_session):
 
 
 def test_game_merge_reassigns_guild_data(client, db_session):
-    from app.models import ActivitySession, Game, ManualPlaytime, ManualSource, PlaytimeAdjustment, User
+    from app.models import (
+        ActivitySession,
+        Game,
+        ManualPlaytime,
+        ManualSource,
+        PlaytimeAdjustment,
+        User,
+    )
 
     headers = _auth_header(client)
     user = User(guild_id=1, discord_user_id=9090, username='merge', display_name='Merge User')
@@ -194,7 +208,7 @@ def test_game_merge_reassigns_guild_data(client, db_session):
     db_session.refresh(source_game)
     db_session.refresh(target_game)
 
-    start = datetime(2026, 9, 10, 18, 0, tzinfo=timezone.utc)
+    start = datetime(2026, 9, 10, 18, 0, tzinfo=UTC)
     db_session.add(
         ActivitySession(
             guild_id=1,
@@ -265,7 +279,7 @@ def test_merge_suggestion_ignore_hides_pair(client, db_session):
     db_session.refresh(source)
     db_session.refresh(target)
 
-    start = datetime(2026, 9, 10, 20, 0, tzinfo=timezone.utc)
+    start = datetime(2026, 9, 10, 20, 0, tzinfo=UTC)
     db_session.add(ActivitySession(guild_id=1, user_id=user.id, game_id=source.id, started_at=start, ended_at=start + timedelta(minutes=20)))
     db_session.commit()
 
@@ -329,7 +343,7 @@ def test_active_sessions_allows_guild_id_zero_fallback(client, db_session):
     db_session.refresh(user)
     db_session.refresh(game)
 
-    start = datetime(2026, 9, 10, 19, 0, tzinfo=timezone.utc)
+    start = datetime(2026, 9, 10, 19, 0, tzinfo=UTC)
     db_session.add(
         ActivitySession(
             guild_id=1,

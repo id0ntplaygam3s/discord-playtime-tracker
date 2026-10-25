@@ -1,6 +1,19 @@
 from fastapi import APIRouter
 
-from app.api.routes import activity, admin, audit, auth, compare, exports, games, health, management, stats, system, users
+from app.api.routes import (
+    activity,
+    admin,
+    audit,
+    auth,
+    compare,
+    exports,
+    games,
+    health,
+    management,
+    stats,
+    system,
+    users,
+)
 
 api_router = APIRouter(prefix="/api")
 api_router.include_router(health.router)

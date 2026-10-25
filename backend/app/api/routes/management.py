@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from sqlalchemy import or_
@@ -8,14 +8,20 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import AuthUser, audit_actor_fields, require_permission
 from app.api.guilds import resolve_guild_id
-from app.core.permissions import PermissionCode
 from app.core.config import get_settings
-from app.services.settings_service import get_setting
+from app.core.permissions import PermissionCode
 from app.db.session import get_db
-from app.models import Game, ManualPlaytime, ManualSource, PlaytimeAdjustment, User
+from app.models import (
+    AuditAction,
+    Game,
+    ManualPlaytime,
+    ManualSource,
+    PlaytimeAdjustment,
+    User,
+)
 from app.schemas.management import (
-    CsvImportRequest,
     AdjustmentCreate,
+    CsvImportRequest,
     ManualPlaytimeCreate,
     SetAbsoluteTotalRequest,
     SteamImportPreviewRequest,
@@ -23,7 +29,7 @@ from app.schemas.management import (
     SteamImportRequest,
     SteamImportResponse,
 )
-from app.services.normalization import normalize_game_name
+from app.services.game_identity_service import resolve_canonical_game
 from app.services.management_service import (
     create_adjustment,
     create_manual_playtime,
@@ -31,10 +37,9 @@ from app.services.management_service import (
     set_absolute_total,
     to_seconds,
 )
-from app.services.session_service import write_audit_log
-from app.services.session_service import get_or_create_game
-from app.models import AuditAction
-from app.services.game_identity_service import resolve_canonical_game
+from app.services.normalization import normalize_game_name
+from app.services.session_service import get_or_create_game, write_audit_log
+from app.services.settings_service import get_setting
 from app.services.steam_import import fetch_steam_owned_games
 
 router = APIRouter(prefix="/management", tags=["management"])
@@ -128,7 +133,7 @@ def list_manual_playtime(
         for row, game in adjustment_rows
     ]
 
-    combined.sort(key=lambda item: item.get("created_at") or datetime.min.replace(tzinfo=timezone.utc), reverse=True)
+    combined.sort(key=lambda item: item.get("created_at") or datetime.min.replace(tzinfo=UTC), reverse=True)
     return combined[:limit]
 
 
@@ -203,7 +208,7 @@ def list_own_manual_playtime(
         for row, game in adjustment_rows
     ]
 
-    combined.sort(key=lambda item: item.get("created_at") or datetime.min.replace(tzinfo=timezone.utc), reverse=True)
+    combined.sort(key=lambda item: item.get("created_at") or datetime.min.replace(tzinfo=UTC), reverse=True)
     return combined[:limit]
 
 
@@ -223,7 +228,7 @@ def delete_manual_playtime(
     if not row:
         raise HTTPException(status_code=404, detail="Manual playtime entry not found")
 
-    row.deleted_at = datetime.now(timezone.utc)
+    row.deleted_at = datetime.now(UTC)
     write_audit_log(
         db,
         guild_id=guild_id,
@@ -357,7 +362,7 @@ def delete_own_manual_playtime(
     row = row_query.first()
     if not row:
         raise HTTPException(status_code=404, detail="Manual playtime entry not found")
-    row.deleted_at = datetime.now(timezone.utc)
+    row.deleted_at = datetime.now(UTC)
     db.commit()
     return {"ok": True, "deleted_manual_playtime_id": row.id}
 
@@ -765,7 +770,7 @@ def steam_import(
                     ManualPlaytime.deleted_at.is_(None),
                     ManualPlaytime.note.like(f"{import_tag}%"),
                 )
-                .update({ManualPlaytime.deleted_at: datetime.now(timezone.utc)}, synchronize_session=False)
+                .update({ManualPlaytime.deleted_at: datetime.now(UTC)}, synchronize_session=False)
             )
 
         for game in preview.games[: payload.max_games]:

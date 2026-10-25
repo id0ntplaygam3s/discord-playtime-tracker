@@ -191,7 +191,7 @@ def parse_csv_preview(content: bytes) -> tuple[list[dict], list[ImportRowError]]
                     "note": row.get("Note", "").strip() or None,
                 }
             )
-        except Exception as exc:
+        except (ValueError, TypeError, KeyError) as exc:
             errors.append(ImportRowError(row_number=idx, message=str(exc)))
 
     return rows, errors

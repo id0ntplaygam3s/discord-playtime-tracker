@@ -3,11 +3,11 @@ from __future__ import annotations
 from contextlib import asynccontextmanager
 
 import structlog
-from alembic import command
 from alembic.config import Config
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from alembic import command
 from app.api.router import api_router
 from app.bot.manager import BotManager
 from app.core.config import get_settings

@@ -4,17 +4,31 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import desc, func
 from sqlalchemy.orm import Session
 
-from app.api.deps import AuthUser, audit_actor_fields, require_admin, require_permission
-from app.core.permissions import PermissionCode
-from app.core.config import get_settings
+from app.api.deps import audit_actor_fields, require_admin, require_permission
 from app.api.guilds import resolve_guild_id
+from app.core.config import get_settings
+from app.core.permissions import PermissionCode
 from app.db.session import get_db
-from app.models import ActivitySession, AuditAction, Game, GameAlias, GameMergeSuggestionState, ManualPlaytime, MergeSuggestionStatus, PlaytimeAdjustment, User
-from app.services.date_ranges import resolve_range
+from app.models import (
+    ActivitySession,
+    AuditAction,
+    Game,
+    GameAlias,
+    GameMergeSuggestionState,
+    ManualPlaytime,
+    MergeSuggestionStatus,
+    PlaytimeAdjustment,
+    User,
+)
 from app.services import stats_service
-from app.services.session_service import write_audit_log
+from app.services.date_ranges import resolve_range
+from app.services.game_identity_service import (
+    add_alias_if_missing,
+    resolve_canonical_game,
+    suggest_merge_pairs,
+)
 from app.services.normalization import normalize_game_name
-from app.services.game_identity_service import add_alias_if_missing, resolve_canonical_game, suggest_merge_pairs
+from app.services.session_service import write_audit_log
 
 router = APIRouter(prefix="/games", tags=["games"])
 

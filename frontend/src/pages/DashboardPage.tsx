@@ -70,10 +70,6 @@ export default function DashboardPage() {
 
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
-  const handleRefresh = useCallback(async () => {
-    setLastUpdated(new Date());
-  }, []);
-
   const handleExportCSV = useCallback(() => {
     if (!overview || !games.length && !users.length) {
       addToast('No data to export', 'error');
