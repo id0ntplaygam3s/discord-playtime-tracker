@@ -115,19 +115,15 @@ docker compose pull
 docker compose up -d
 ```
 
-5. Run migrations (safe and idempotent):
+Migrations run automatically on startup.
 
-```bash
-docker compose exec discord-playtime-tracker-backend alembic upgrade head
-```
-
-6. Check health:
+5. Check health:
 
 ```bash
 curl -fsS http://localhost:4091/api/health
 ```
 
-7. Open dashboard:
+6. Open dashboard:
 - `http://SERVER-IP:4091`
 
 ## TrueNAS Example (Optional)
@@ -204,11 +200,7 @@ docker compose pull
 docker compose up -d
 ```
 
-4. Run migrations:
-
-```bash
-docker compose exec discord-playtime-tracker-backend alembic upgrade head
-```
+Migrations run automatically on startup.
 
 ## Prerequisites
 - Linux server/VPS (recommended) with Docker Engine + Compose plugin
@@ -378,16 +370,11 @@ Games and Games Graph pages now include a rows dropdown:
 - Default 50 rows
 - 30, 50, 100, 250 options
 - All option for full overview
-
 ## Upgrade Notes
-Schema update adds account and RBAC tables through Alembic revision:
-- `0002_accounts_rbac_settings`
-- `0003_game_canonical_audit_actor`
 
-Upgrade command:
-```bash
-docker compose exec discord-playtime-tracker-backend alembic upgrade head
-```
+Schema updates are applied automatically on startup through Alembic:
+- `0002_accounts_rbac_settings` - Added user accounts, RBAC, settings tables
+- `0003_game_canonical_audit_actor` - Added game merge support and improved audit logging
 
 This migration preserves existing tracked sessions, manual records, adjustments, users, games, and legacy admin login.
 
@@ -497,8 +484,9 @@ docker compose exec -T discord-playtime-tracker-postgres psql -U "$POSTGRES_USER
 git pull
 docker compose pull
 docker compose up -d
-docker compose exec discord-playtime-tracker-backend alembic upgrade head
 ```
+
+Migrations run automatically on startup.
 
 ## Technical Reference
 ### Architecture
