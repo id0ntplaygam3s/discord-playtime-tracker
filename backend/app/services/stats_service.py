@@ -139,9 +139,10 @@ def ranked_games(
     else:
         hist_q = (
             db.query(
-                func.literal(0).label("game_id"),
-                func.literal(0).label("hist_seconds"),
-            ).filter(func.literal(0) == 1)
+                func.cast(0, Game.id.type).label("game_id"),
+                func.cast(0, func.NUMERIC).label("hist_seconds"),
+            )
+            .filter(func.cast(1, func.BOOLEAN) == func.cast(0, func.BOOLEAN))
             .subquery()
         )
 
@@ -159,9 +160,10 @@ def ranked_games(
     else:
         adj_q = (
             db.query(
-                func.literal(0).label("game_id"),
-                func.literal(0).label("adj_seconds"),
-            ).filter(func.literal(0) == 1)
+                func.cast(0, Game.id.type).label("game_id"),
+                func.cast(0, func.NUMERIC).label("adj_seconds"),
+            )
+            .filter(func.cast(1, func.BOOLEAN) == func.cast(0, func.BOOLEAN))
             .subquery()
         )
 
@@ -222,9 +224,10 @@ def ranked_users(
     else:
         hist_q = (
             db.query(
-                func.literal(0).label("user_id"),
-                func.literal(0).label("hist_seconds"),
-            ).filter(func.literal(0) == 1)
+                func.cast(0, ActivitySession.user_id.type).label("user_id"),
+                func.cast(0, func.NUMERIC).label("hist_seconds"),
+            )
+            .filter(func.cast(1, func.BOOLEAN) == func.cast(0, func.BOOLEAN))
             .subquery()
         )
 
@@ -241,9 +244,10 @@ def ranked_users(
     else:
         adj_q = (
             db.query(
-                func.literal(0).label("user_id"),
-                func.literal(0).label("adj_seconds"),
-            ).filter(func.literal(0) == 1)
+                func.cast(0, ActivitySession.user_id.type).label("user_id"),
+                func.cast(0, func.NUMERIC).label("adj_seconds"),
+            )
+            .filter(func.cast(1, func.BOOLEAN) == func.cast(0, func.BOOLEAN))
             .subquery()
         )
 
@@ -308,7 +312,7 @@ def ranked_users_for_game(
             func.coalesce(Game.canonical_game_id, Game.id) == game_id,
         ]
     else:
-        hist_filters = [func.literal(0) == 1]
+        hist_filters = [func.cast(1, func.BOOLEAN) == func.cast(0, func.BOOLEAN)]
 
     if include_manual:
         hist_q = (
@@ -324,16 +328,17 @@ def ranked_users_for_game(
     else:
         hist_q = (
             db.query(
-                func.literal(0).label("user_id"),
-                func.literal(0).label("hist_seconds"),
-            ).filter(func.literal(0) == 1)
+                func.cast(0, ActivitySession.user_id.type).label("user_id"),
+                func.cast(0, func.NUMERIC).label("hist_seconds"),
+            )
+            .filter(func.cast(1, func.BOOLEAN) == func.cast(0, func.BOOLEAN))
             .subquery()
         )
 
     if include_manual:
         adj_filters = [PlaytimeAdjustment.guild_id == guild_id, func.coalesce(Game.canonical_game_id, Game.id) == game_id]
     else:
-        adj_filters = [func.literal(0) == 1]
+        adj_filters = [func.cast(1, func.BOOLEAN) == func.cast(0, func.BOOLEAN)]
 
     if include_manual:
         adj_q = (
@@ -349,9 +354,10 @@ def ranked_users_for_game(
     else:
         adj_q = (
             db.query(
-                func.literal(0).label("user_id"),
-                func.literal(0).label("adj_seconds"),
-            ).filter(func.literal(0) == 1)
+                func.cast(0, ActivitySession.user_id.type).label("user_id"),
+                func.cast(0, func.NUMERIC).label("adj_seconds"),
+            )
+            .filter(func.cast(1, func.BOOLEAN) == func.cast(0, func.BOOLEAN))
             .subquery()
         )
 
