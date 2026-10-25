@@ -5,6 +5,7 @@ from typing import Literal
 
 from sqlalchemy import func, text
 from sqlalchemy.orm import Session
+from sqlalchemy.types import Numeric, Boolean
 
 from app.core.config import get_settings
 from app.models import ActivitySession, Game, ManualPlaytime, PlaytimeAdjustment, User
@@ -140,9 +141,9 @@ def ranked_games(
         hist_q = (
             db.query(
                 func.cast(0, Game.id.type).label("game_id"),
-                func.cast(0, func.NUMERIC).label("hist_seconds"),
+                func.cast(0, Numeric()).label("hist_seconds"),
             )
-            .filter(func.cast(1, func.BOOLEAN) == func.cast(0, func.BOOLEAN))
+            .filter(func.cast(1, Boolean()) == func.cast(0, Boolean()))
             .subquery()
         )
 
@@ -161,9 +162,9 @@ def ranked_games(
         adj_q = (
             db.query(
                 func.cast(0, Game.id.type).label("game_id"),
-                func.cast(0, func.NUMERIC).label("adj_seconds"),
+                func.cast(0, Numeric()).label("adj_seconds"),
             )
-            .filter(func.cast(1, func.BOOLEAN) == func.cast(0, func.BOOLEAN))
+            .filter(func.cast(1, Boolean()) == func.cast(0, Boolean()))
             .subquery()
         )
 
@@ -225,9 +226,9 @@ def ranked_users(
         hist_q = (
             db.query(
                 func.cast(0, ActivitySession.user_id.type).label("user_id"),
-                func.cast(0, func.NUMERIC).label("hist_seconds"),
+                func.cast(0, Numeric()).label("hist_seconds"),
             )
-            .filter(func.cast(1, func.BOOLEAN) == func.cast(0, func.BOOLEAN))
+            .filter(func.cast(1, Boolean()) == func.cast(0, Boolean()))
             .subquery()
         )
 
@@ -245,9 +246,9 @@ def ranked_users(
         adj_q = (
             db.query(
                 func.cast(0, ActivitySession.user_id.type).label("user_id"),
-                func.cast(0, func.NUMERIC).label("adj_seconds"),
+                func.cast(0, Numeric()).label("adj_seconds"),
             )
-            .filter(func.cast(1, func.BOOLEAN) == func.cast(0, func.BOOLEAN))
+            .filter(func.cast(1, Boolean()) == func.cast(0, Boolean()))
             .subquery()
         )
 
@@ -312,7 +313,7 @@ def ranked_users_for_game(
             func.coalesce(Game.canonical_game_id, Game.id) == game_id,
         ]
     else:
-        hist_filters = [func.cast(1, func.BOOLEAN) == func.cast(0, func.BOOLEAN)]
+        hist_filters = [func.cast(1, Boolean()) == func.cast(0, Boolean())]
 
     if include_manual:
         hist_q = (
@@ -329,16 +330,16 @@ def ranked_users_for_game(
         hist_q = (
             db.query(
                 func.cast(0, ActivitySession.user_id.type).label("user_id"),
-                func.cast(0, func.NUMERIC).label("hist_seconds"),
+                func.cast(0, Numeric()).label("hist_seconds"),
             )
-            .filter(func.cast(1, func.BOOLEAN) == func.cast(0, func.BOOLEAN))
+            .filter(func.cast(1, Boolean()) == func.cast(0, Boolean()))
             .subquery()
         )
 
     if include_manual:
         adj_filters = [PlaytimeAdjustment.guild_id == guild_id, func.coalesce(Game.canonical_game_id, Game.id) == game_id]
     else:
-        adj_filters = [func.cast(1, func.BOOLEAN) == func.cast(0, func.BOOLEAN)]
+        adj_filters = [func.cast(1, Boolean()) == func.cast(0, Boolean())]
 
     if include_manual:
         adj_q = (
@@ -355,9 +356,9 @@ def ranked_users_for_game(
         adj_q = (
             db.query(
                 func.cast(0, ActivitySession.user_id.type).label("user_id"),
-                func.cast(0, func.NUMERIC).label("adj_seconds"),
+                func.cast(0, Numeric()).label("adj_seconds"),
             )
-            .filter(func.cast(1, func.BOOLEAN) == func.cast(0, func.BOOLEAN))
+            .filter(func.cast(1, Boolean()) == func.cast(0, Boolean()))
             .subquery()
         )
 
