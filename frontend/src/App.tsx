@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { getMe } from './api/adminApi';
 import { AppPreferencesProvider } from './context/AppPreferencesContext';
+import { ThemeProvider } from './context/ThemeProvider';
+import { ToastProvider } from './components/ToastProvider';
 import { MeResponse } from './types';
 import AppLayout from './layouts/AppLayout';
 import ActivityPage from './pages/ActivityPage';
@@ -122,8 +124,10 @@ export default function App() {
   const canManagePermissions = permissionSet.has('permissions.manage');
 
   return (
-    <AppPreferencesProvider value={{ autoRefreshEnabled }}>
-      <Routes>
+    <ThemeProvider>
+      <ToastProvider>
+        <AppPreferencesProvider value={{ autoRefreshEnabled }}>
+        <Routes>
       <Route
         element={
           <AppLayout
@@ -158,7 +162,9 @@ export default function App() {
         {canViewSettings && <Route path="/settings" element={<SettingsPage />} />}
       </Route>
       <Route path="*" element={<Navigate to={canViewDashboard ? '/' : '/games'} />} />
-      </Routes>
-    </AppPreferencesProvider>
+        </Routes>
+      </AppPreferencesProvider>
+    </ToastProvider>
+  </ThemeProvider>
   );
 }
