@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useCallback } from 'react';
 import dayjs from 'dayjs';
 import { getGameUsers, getTopGames } from '../api/trackerApi';
 import ActivityLineChart from '../charts/ActivityLineChart';
@@ -7,8 +7,10 @@ import TopUsersChart from '../charts/TopUsersChart';
 import CurrentSessions from '../components/CurrentSessions';
 import DateRangeTabs from '../components/DateRangeTabs';
 import StatCard from '../components/StatCard';
+import { SkeletonCard, SkeletonGraph, StatCardSkeleton } from '../components/SkeletonLoader';
 import { useAppPreferences } from '../context/AppPreferencesContext';
 import { useDashboardData } from '../hooks/useDashboardData';
+import { useToast } from '../components/ToastProvider';
 import { DateRangeKey, RankedPlaytime } from '../types';
 import { activityRangeOptions, allGamesRangeOptions, selectedGameRangeOptions } from '../utils/dateRanges';
 import { formatDuration } from '../utils/time';
@@ -32,6 +34,7 @@ function describeRangeWindow(range: DateRangeKey, from?: string, to?: string): s
 export default function DashboardPage() {
   const guildId = Number(import.meta.env.VITE_GUILD_ID || 0);
   const { autoRefreshEnabled } = useAppPreferences();
+  const { addToast } = useToast();
   const [selectedGameId, setSelectedGameId] = useState<number>(0);
   const [selectedGameUsers, setSelectedGameUsers] = useState<any[]>([]);
   const [selectedGameActivityRange, setSelectedGameActivityRange] = useState<DateRangeKey>('all');
@@ -64,6 +67,46 @@ export default function DashboardPage() {
     { from: allGamesFrom ? new Date(`${allGamesFrom}T00:00:00Z`).toISOString() : undefined, to: allGamesTo ? new Date(`${allGamesTo}T23:59:59Z`).toISOString() : undefined },
     { from: activityFrom ? new Date(`${activityFrom}T00:00:00Z`).toISOString() : undefined, to: activityTo ? new Date(`${activityTo}T23:59:59Z`).toISOString() : undefined },
   );
+
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+
+  const handleRefresh = useCallback(async () => {
+    setLastUpdated(new Date());
+  }, []);
+
+  const handleExportCSV = useCallback(() => {
+    if (!overview || !games.length && !users.length) {
+      addToast('No data to export', 'error');
+      return;
+    }
+
+    const headers = ['Name', 'Type', 'Total Playtime (hours)', 'Total Playtime (seconds)'];
+    const gameRows = games.map((g) => [
+      g.name,
+      'Game',
+      (g.total_seconds / 3600).toFixed(2),
+      g.total_seconds.toString(),
+    ]);
+    const userRows = users.map((u) => [
+      u.name,
+      'User',
+      (u.total_seconds / 3600).toFixed(2),
+      u.total_seconds.toString(),
+    ]);
+
+    const allRows = [...gameRows, ...userRows];
+    const csvContent = [headers, ...allRows].map((row) => row.join(',')).join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `playtime-export-${dayjs().format('YYYY-MM-DD')}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+
+    addToast('Dashboard data exported successfully', 'success');
+    setLastUpdated(new Date());
+  }, [overview, games, users, addToast]);
 
   const palette = ['#22d3ee', '#f97316', '#4ade80', '#f43f5e', '#facc15', '#a78bfa', '#14b8a6', '#60a5fa'];
 
@@ -228,18 +271,68 @@ export default function DashboardPage() {
     };
   }, [guildId, activityOverTimeRange, activityFrom, activityTo]);
 
-  if (loading) return <div className="panel">Loading dashboard...</div>;
+  if (loading) {
+    return (
+      <div className="page-grid">
+        <div className="stat-grid">
+          <StatCardSkeleton />
+          <StatCardSkeleton />
+          <StatCardSkeleton />
+          <StatCardSkeleton />
+          <StatCardSkeleton />
+          <StatCardSkeleton />
+        </div>
+        <div className="two-col">
+          <SkeletonGraph />
+          <SkeletonCard />
+        </div>
+        <div className="two-col dashboard-bottom">
+          <div className="split-stack">
+            <SkeletonCard />
+          </div>
+          <div className="split-stack">
+            <SkeletonCard />
+            <SkeletonCard />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (error) return <div className="panel error-box">{error}</div>;
-  if (!overview) return <div className="panel">No data available.</div>;
+  if (!overview) return <div className="panel empty-state">
+    <div className="empty-state-icon">📊</div>
+    <div className="empty-state-title">No data available</div>
+    <div className="empty-state-desc">Start tracking Discord activity to see your dashboard populate.</div>
+  </div>;
 
   return (
     <div className="page-grid">
       <header className="top-row">
         <div>
           <h2>Discord Playtime Activity</h2>
+          <p className="subtle">
+            Total combined playtime across tracked sessions and admin-managed records.
+            {lastUpdated && (
+              <span className="last-updated">
+                {' '}· Last updated {dayjs(lastUpdated).fromNow()}
+              </span>
+            )}
+          </p>
+        </div>
+        <div>
+          <h2>Discord Playtime Activity</h2>
           <p className="subtle">Total combined playtime across tracked sessions and admin-managed records.</p>
         </div>
         <div className="filters">
+          <button
+            type="button"
+            className="export-btn"
+            onClick={handleExportCSV}
+            title="Export dashboard data as CSV"
+          >
+            Export CSV
+          </button>
           <label style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
             <input type="checkbox" checked={splitByPlayer} onChange={(e) => setSplitByPlayer(e.target.checked)} />
             Split games by player

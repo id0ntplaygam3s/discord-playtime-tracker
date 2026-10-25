@@ -1,5 +1,7 @@
 import { NavLink, Outlet } from 'react-router-dom';
 import { MeResponse } from '../types';
+import BotStatusIndicator from '../components/BotStatusIndicator';
+import ThemeToggle from '../components/ThemeToggle';
 
 type NavItem = [string, string, string?];
 
@@ -53,6 +55,8 @@ export default function AppLayout({
     <div className={`layout-shell layout-${layoutMode}`}>
       <aside className="sidebar">
         <div className="brand">Discord Playtime Tracker</div>
+        <BotStatusIndicator />
+        <ThemeToggle />
         <nav>
           {visibleNavItems.map(([to, label]) => (
             <NavLink key={to} to={to} end={to === '/'} className="nav-link">
