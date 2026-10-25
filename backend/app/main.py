@@ -3,6 +3,8 @@ from __future__ import annotations
 from contextlib import asynccontextmanager
 
 import structlog
+from alembic import command
+from alembic.config import Config
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -17,6 +19,17 @@ from app.workers.retention import RetentionWorker
 settings = get_settings()
 configure_logging(settings.log_level)
 logger = structlog.get_logger(__name__)
+
+
+def run_migrations() -> None:
+    """Run alembic migrations on startup."""
+    try:
+        alembic_cfg = Config("alembic.ini")
+        command.upgrade(alembic_cfg, "head")
+        logger.info("migrations_applied", version="head")
+    except Exception as e:
+        logger.error("migration_failed", error=str(e))
+        raise
 
 
 class DisabledBotManager:
@@ -34,6 +47,8 @@ class DisabledBotManager:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("app_startup", version=settings.app_version)
+
+    run_migrations()
 
     if settings.testing:
         app.state.bot_manager = DisabledBotManager()
