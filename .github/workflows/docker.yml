@@ -11,10 +11,55 @@ on:
         description: 'Release tag (e.g., v1.0.0)'
         required: false
         type: string
+      components:
+        description: 'Components to build (all, backend, frontend)'
+        required: false
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - backend
+          - frontend
 
 jobs:
-  build-and-push:
+  detect-changes:
     runs-on: ubuntu-latest
+    outputs:
+      backend: ${{ steps.changes.outputs.backend }}
+      frontend: ${{ steps.changes.outputs.frontend }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Detect changes
+        id: changes
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            COMPONENTS="${{ github.event.inputs.components }}"
+            if [ "$COMPONENTS" = "all" ] || [ "$COMPONENTS" = "backend" ]; then
+              echo "backend=true" >> $GITHUB_OUTPUT
+            else
+              echo "backend=false" >> $GITHUB_OUTPUT
+            fi
+            if [ "$COMPONENTS" = "all" ] || [ "$COMPONENTS" = "frontend" ]; then
+              echo "frontend=true" >> $GITHUB_OUTPUT
+            else
+              echo "frontend=false" >> $GITHUB_OUTPUT
+            fi
+          elif [ "${{ github.event_name }}" = "release" ]; then
+            echo "backend=true" >> $GITHUB_OUTPUT
+            echo "frontend=true" >> $GITHUB_OUTPUT
+          else
+            BACKEND=$(git diff-tree --no-commit-id --name-only -r "${{ github.event.before }}" "${{ github.sha }}" | grep -q "^backend/" && echo "true" || echo "false")
+            FRONTEND=$(git diff-tree --no-commit-id --name-only -r "${{ github.event.before }}" "${{ github.sha }}" | grep -q "^frontend/" && echo "true" || echo "false")
+            echo "backend=$BACKEND" >> $GITHUB_OUTPUT
+            echo "frontend=$FRONTEND" >> $GITHUB_OUTPUT
+          fi
+
+  build-and-push:
+    needs: detect-changes
+    runs-on: ubuntu-latest
+    if: needs.detect-changes.outputs.backend == 'true' || needs.detect-changes.outputs.frontend == 'true'
     permissions:
       contents: write
       packages: write
@@ -46,6 +91,7 @@ jobs:
           fi
 
       - name: Build and push backend
+        if: needs.detect-changes.outputs.backend == 'true'
         uses: docker/build-push-action@v5
         with:
           context: ./backend
@@ -56,6 +102,7 @@ jobs:
             ${{ secrets.DOCKERHUB_USERNAME }}/discord-playtime-tracker-backend:latest
 
       - name: Build and push frontend
+        if: needs.detect-changes.outputs.frontend == 'true'
         uses: docker/build-push-action@v5
         with:
           context: ./frontend
@@ -66,7 +113,7 @@ jobs:
             ${{ secrets.DOCKERHUB_USERNAME }}/discord-playtime-tracker-frontend:latest
 
       - name: Create GitHub Release
-        if: github.event_name == 'release' || (github.event_name == 'workflow_dispatch' && github.event.inputs.tag)
+        if: (github.event_name == 'release' || (github.event_name == 'workflow_dispatch' && github.event.inputs.tag)) && (needs.detect-changes.outputs.backend == 'true' || needs.detect-changes.outputs.frontend == 'true')
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.version.outputs.VERSION }}
