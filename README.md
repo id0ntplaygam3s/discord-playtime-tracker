@@ -10,6 +10,7 @@ Track game activity your bot can observe in Discord, combine it with historical/
 
 ## Table of Contents
 - [What It Does](#what-it-does)
+- [Getting Started](#getting-started)
 - [Quick Install (No Clone, Public Images)](#quick-install-no-clone-public-images)
 - [TrueNAS Example (Optional)](#truenas-example-optional)
 - [Repository Install (Clone + Compose Files)](#repository-install-clone--compose-files)
@@ -46,6 +47,18 @@ Important limitations:
 - Some activity may be hidden or unavailable depending on Discord privacy settings/intents/outages.
 - Bot downtime can create missing observed time.
 - Missing time is never faked; use manual adjustments for corrections.
+
+## Getting Started
+
+**TL;DR Quick Setup:**
+
+1. [Create a Discord Bot](#discord-bot-setup) and get your token + guild ID
+2. Copy `.env.example` to `.env` and fill in the required values
+3. Run `docker compose up -d`
+4. Run migrations: `docker compose exec discord-playtime-tracker-backend alembic upgrade head`
+5. Open `http://localhost:4091` (or your server IP)
+
+**⚠️ Security Note:** This app has no built-in HTTPS. Never expose the dashboard directly to the internet. Use Tailscale, a reverse proxy with Let's Encrypt, or another secure tunnel.
 
 ## Quick Install (No Clone, Public Images)
 This is the quickest path if you just want the app running and do not need the repository locally.
@@ -182,6 +195,8 @@ cd discord-playtime-tracker
 cp .env.example .env
 ```
 
+> **Tip:** Generate a secure `SECRET_KEY` with: `python -c "import secrets; print(secrets.token_urlsafe(32))"`
+
 3. Pull and start:
 
 ```bash
@@ -201,60 +216,102 @@ docker compose exec discord-playtime-tracker-backend alembic upgrade head
 - Private access path (for example Tailscale)
 
 ## Discord Bot Setup
-1. Open Discord Developer Portal.
-2. Create a new application.
-3. Add a Bot user.
-4. Enable intents:
-- Server Members Intent
-- Presence Intent
-5. Invite bot to your guild with minimum needed scope and permission:
-- Scope: `bot`
-- Permission: `View Channels`
 
-This app does not read messages, DMs, or voice content.
+This tracker uses a Discord bot to observe `playing` presence events. The bot does **not** read messages, DMs, or voice content.
 
-How to find `DISCORD_GUILD_ID`:
-1. In Discord, open `User Settings -> Advanced` and enable Developer Mode.
-2. Right-click your server icon.
-3. Click `Copy Server ID`.
+### Step 1: Create a Discord Application
 
-For Discord app verification/profile setup, publish these two files to public URLs (for example GitHub Pages or raw files in your public repository) and paste those URLs into Discord Developer Portal fields:
-- Terms of Service URL
-- Privacy Policy URL
+1. Go to [Discord Developer Portal](https://discord.com/developers/applications)
+2. Click **New Application** and give it a name
+3. Navigate to the **Bot** section in the left sidebar
+
+### Step 2: Configure Bot Intents
+
+Under **Privileged Gateway Intents**, enable:
+
+- **Server Members Intent** - Required to sync guild members on startup
+- **Presence Intent** - Required to observe `playing` presence events
+
+> Without these intents, the bot cannot see what games people are playing.
+
+### Step 3: Get Your Bot Token
+
+1. In the **Bot** section, click **Reset Token** (or **Copy Token** if already set)
+2. Save this token securely - it will be used as `DISCORD_BOT_TOKEN` in your `.env` file
+3. **Never share your bot token publicly**
+
+### Step 4: Invite Bot to Your Server
+
+1. Go to **OAuth2 → URL Generator**
+2. Select scopes:
+   - `bot`
+3. Select permissions:
+   - `View Channels` (under General Permissions)
+4. Copy the generated URL and open it in your browser
+5. Select your server and authorize
+
+### Step 5: Get Your Guild ID
+
+1. In Discord, open **User Settings → Advanced** and enable **Developer Mode**
+2. Right-click your server icon
+3. Click **Copy Server ID**
+4. This is your `DISCORD_GUILD_ID`
+
+### Step 6: App Verification URLs (Required by Discord)
+
+Discord requires public URLs for Terms of Service and Privacy Policy when adding a bot to public servers. If your server is private, you can skip this. Otherwise, host these files publicly (e.g., GitHub Pages) and paste the URLs in:
+
+**OAuth2 → General Information → Terms of Service URL**
+**OAuth2 → General Information → Privacy Policy URL**
+
+---
 
 ## Environment Variables
-Required for normal operation:
-- `DISCORD_BOT_TOKEN`
-- `DISCORD_GUILD_ID`
-- `POSTGRES_USER`
-- `POSTGRES_PASSWORD`
-- `POSTGRES_DB`
-- `DATABASE_URL`
-- `ADMIN_USERNAME`
-- `ADMIN_PASSWORD`
-- `SECRET_KEY`
-- `WEB_PORT`
-- `TIMEZONE`
 
-Optional:
-- `STEAM_API_KEY` (required only for Steam profile imports)
-- `SESSION_RETENTION_DAYS`
-- `RETENTION_CHECK_INTERVAL_MINUTES`
-- `CORS_ALLOW_ORIGINS`
-- `APP_VERSION`
-- `ACCESS_TOKEN_EXPIRE_MINUTES`
-- `DOCKERHUB_NAMESPACE` (defaults to `id0ntplaygam3s`)
-- `APP_IMAGE_TAG` (defaults to `latest`)
+Copy `.env.example` to `.env` and configure the following values:
 
-`VITE_GUILD_ID` note:
-- Set `VITE_GUILD_ID` to the internal DB guild id (`guilds.id`), not the Discord snowflake.
-- If set to `0`, the API falls back to the configured Discord guild's internal id automatically.
+### Required
 
-How to query it after first start:
+| Variable | Description | Example |
+|----------|-------------|---------|
+| `DISCORD_BOT_TOKEN` | Your Discord bot token from Developer Portal | `MTIzNDU2Nzg5...` |
+| `DISCORD_GUILD_ID` | Discord server ID (snowflake, 17+ digits) | `123456789012345678` |
+| `POSTGRES_USER` | PostgreSQL username | `tracker` |
+| `POSTGRES_PASSWORD` | PostgreSQL password (use a strong password) | `s3cur3P@ss` |
+| `POSTGRES_DB` | PostgreSQL database name | `tracker` |
+| `DATABASE_URL` | Full database connection string | `postgresql+asyncpg://tracker:s3cur3P@ss@postgres:5432/tracker` |
+| `ADMIN_USERNAME` | Bootstrap admin username | `admin` |
+| `ADMIN_PASSWORD` | Bootstrap admin password (change after first login) | `Ch@ngeM3` |
+| `SECRET_KEY` | JWT signing secret (generate a random string) | `a1b2c3d4e5f6...` |
+| `WEB_PORT` | Port the frontend serves on | `4091` |
+| `TIMEZONE` | Server timezone for display | `UTC` |
+
+### Optional
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `STEAM_API_KEY` | Required only for Steam profile imports | (none) |
+| `SESSION_RETENTION_DAYS` | Days to keep active sessions | (none - unlimited) |
+| `RETENTION_CHECK_INTERVAL_MINUTES` | How often to check for expired sessions | `60` |
+| `CORS_ALLOW_ORIGINS` | Comma-separated allowed origins | (none) |
+| `APP_VERSION` | App version string | Auto-generated |
+| `ACCESS_TOKEN_EXPIRE_MINUTES` | JWT token expiry time | `1440` (24h) |
+| `DOCKERHUB_NAMESPACE` | Docker Hub namespace for images | `id0ntplaygam3s` |
+| `APP_IMAGE_TAG` | Docker image tag | `latest` |
+
+### Important: VITE_GUILD_ID
+
+> **This is the internal database guild ID, NOT the Discord server ID (snowflake).**
+
+The frontend needs the internal DB guild ID to query the API correctly. If you don't set this, the API will auto-resolve it when `VITE_GUILD_ID=0`.
+
+**To find your internal guild ID after first start:**
 
 ```bash
 docker compose exec discord-playtime-tracker-postgres psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "select id, discord_guild_id, name from guilds;"
 ```
+
+**Recommended:** Set `VITE_GUILD_ID=0` initially and let the backend auto-resolve. Once you know the internal ID, you can set it explicitly.
 
 ## First Login
 On login page:
@@ -548,11 +605,14 @@ npm run build
 - Guest and admin auth flows both work
 
 ## Troubleshooting
-- `401 login`: verify `ADMIN_USERNAME`/`ADMIN_PASSWORD` and `SECRET_KEY`.
-- No live sessions: verify bot intents and Discord activity visibility.
-- Steam import fails: verify `STEAM_API_KEY` and profile visibility/identifier.
-- Empty dashboard or "Failed to load dashboard data": verify `VITE_GUILD_ID` is the internal DB guild id (query `guilds.id`) and not the Discord server ID. If `VITE_GUILD_ID=0`, the backend auto-resolves to the configured guild.
-- Postgres error `could not determine data type of parameter $4`: update backend image to a version that includes typed casts for optional `from/to` filters, then recreate backend.
+- **401 login**: verify `ADMIN_USERNAME`/`ADMIN_PASSWORD` and `SECRET_KEY`.
+- **No live sessions**: verify bot intents (Server Members + Presence) are enabled and bot is in your server.
+- **Status unavailable**: this is normal if the bot token is not configured. The tracker will still work for manual/historical data.
+- **Steam import fails**: verify `STEAM_API_KEY` and profile visibility/identifier.
+- **Empty dashboard or "Failed to load dashboard data"**: verify `VITE_GUILD_ID` is the internal DB guild id (query `guilds.id`) and not the Discord server ID. If `VITE_GUILD_ID=0`, the backend auto-resolves to the configured guild.
+- **Postgres error `could not determine data type of parameter $4`**: update backend image to a version that includes typed casts for optional `from/to` filters, then recreate backend.
+- **Bot not connecting**: check logs with `docker compose logs backend` for errors. Common causes: invalid token, missing intents, or bot not invited to the server.
+- **Cannot access dashboard**: ensure you're using the correct port (`WEB_PORT`, default 4091) and that the frontend container is healthy.
 
 ## Privacy and Legal
 Stored:
