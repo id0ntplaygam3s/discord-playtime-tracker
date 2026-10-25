@@ -141,6 +141,8 @@ export interface ActiveSession {
   session_id: number;
   user_id: number;
   user_name: string;
+  avatar_url: string | null;
+  game_id: number;
   game_name: string;
   started_at: string;
 }
