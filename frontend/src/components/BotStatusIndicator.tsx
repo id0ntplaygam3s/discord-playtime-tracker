@@ -17,7 +17,7 @@ export default function BotStatusIndicator() {
 
   const fetchStatus = useCallback(async () => {
     try {
-      const { data } = await client.get('/health/bot-status');
+      const { data } = await client.get('/api/health/bot-status');
       setStatus(data);
       setError(null);
     } catch {

@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { getMe } from './api/adminApi';
 import { AppPreferencesProvider } from './context/AppPreferencesContext';
-import { ThemeProvider } from './context/ThemeProvider';
 import { ToastProvider } from './components/ToastProvider';
 import { MeResponse } from './types';
 import AppLayout from './layouts/AppLayout';
@@ -124,9 +123,8 @@ export default function App() {
   const canManagePermissions = permissionSet.has('permissions.manage');
 
   return (
-    <ThemeProvider>
-      <ToastProvider>
-        <AppPreferencesProvider value={{ autoRefreshEnabled }}>
+    <ToastProvider>
+      <AppPreferencesProvider value={{ autoRefreshEnabled }}>
         <Routes>
       <Route
         element={
@@ -165,6 +163,5 @@ export default function App() {
         </Routes>
       </AppPreferencesProvider>
     </ToastProvider>
-  </ThemeProvider>
   );
 }

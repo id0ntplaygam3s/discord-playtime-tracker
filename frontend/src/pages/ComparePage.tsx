@@ -45,7 +45,6 @@ export default function ComparePage() {
         setError(null);
         const data = await listUsers(guildId);
         setUsers(data);
-        setSelected(data.slice(0, 2).map((u: any) => u.id));
       } catch (err: any) {
         setError(normalizeError(err, 'Failed to load users'));
       }
@@ -77,11 +76,11 @@ export default function ComparePage() {
   }, [guildId, selected]);
 
   const toggle = (id: number) => {
-    setSelected((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id].slice(0, 6)));
+    setSelected((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]);
   };
 
   const selectAll = () => {
-    setSelected(users.slice(0, 6).map((u) => u.id));
+    setSelected(users.map((u) => u.id));
   };
 
   const clearSelected = () => {

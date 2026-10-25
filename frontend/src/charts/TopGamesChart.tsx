@@ -165,10 +165,11 @@ export default function TopGamesChart({
                 >
                   {showValues && idx === splitPlayers.length - 1 && (
                     <LabelList
-                      dataKey={player.key}
-                      valueAccessor={(entry: any) => Number(entry?.total_seconds || 0)}
                       position="right"
-                      formatter={(value: unknown) => (Number(value || 0) >= 1800 ? formatLabelDuration(value) : '')}
+                      formatter={(entry: any) => {
+                        const total = splitPlayers.reduce((sum, p) => sum + Number(entry[p.key] || 0), 0);
+                        return total >= 1800 ? formatLabelDuration(total) : '';
+                      }}
                       fill="#cbd5e1"
                     />
                   )}
