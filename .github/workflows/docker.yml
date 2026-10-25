@@ -3,7 +3,14 @@ name: Build and Push Docker Images
 on:
   push:
     branches: [main]
+  release:
+    types: [published]
   workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag (e.g., v1.0.0)'
+        required: false
+        type: string
 
 jobs:
   build-and-push:
@@ -24,9 +31,16 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Extract version
+      - name: Determine version
         id: version
-        run: echo "VERSION=$(date +%Y%m%d)-${{ github.sha }}" >> $GITHUB_OUTPUT
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ -n "${{ github.event.inputs.tag }}" ]; then
+            echo "VERSION=${{ github.event.inputs.tag }}" >> $GITHUB_OUTPUT
+          elif [ "${{ github.event_name }}" = "release" ]; then
+            echo "VERSION=${{ github.event.release.tag_name }}" >> $GITHUB_OUTPUT
+          else
+            echo "VERSION=$(date +%Y%m%d)-${{ github.sha }}" >> $GITHUB_OUTPUT
+          fi
 
       - name: Build and push backend
         uses: docker/build-push-action@v5
@@ -47,3 +61,12 @@ jobs:
           tags: |
             ${{ secrets.DOCKERHUB_USERNAME }}/discord-playtime-tracker-frontend:${{ steps.version.outputs.VERSION }}
             ${{ secrets.DOCKERHUB_USERNAME }}/discord-playtime-tracker-frontend:latest
+
+      - name: Create GitHub Release
+        if: github.event_name == 'release' || (github.event_name == 'workflow_dispatch' && github.event.inputs.tag)
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.VERSION }}
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
