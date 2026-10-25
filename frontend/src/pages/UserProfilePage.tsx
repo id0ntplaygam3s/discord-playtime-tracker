@@ -39,7 +39,12 @@ export default function UserProfilePage() {
     <div className="page-grid">
       <div className="panel">
         <Link to="/users">Back to users</Link>
-        <h2>{profile.display_name}</h2>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginTop: 8 }}>
+          {profile.avatar_url && (
+            <img src={profile.avatar_url} alt={profile.display_name} className="avatar avatar-lg" />
+          )}
+          <h2 style={{ margin: 0 }}>{profile.display_name}</h2>
+        </div>
         <div className="status-grid">
           <div><strong>Combined:</strong> {formatDuration(profile.total_seconds)}</div>
           <div><strong>Automatic:</strong> {formatDuration(profile.automatic_seconds)}</div>

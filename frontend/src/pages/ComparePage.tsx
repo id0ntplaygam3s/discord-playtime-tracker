@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import client from '../api/client';
 import { formatDuration } from '../utils/time';
 import { listUsers } from '../api/adminApi';
+import { SearchInput, useSearch } from '../components/SearchInput';
 
 function normalizeError(err: any, fallback: string): string {
   const detail = err?.response?.data?.detail;
@@ -35,6 +36,8 @@ export default function ComparePage() {
   const [compareRows, setCompareRows] = useState<any[]>([]);
   const [sharedGames, setSharedGames] = useState<any[]>([]);
   const [error, setError] = useState<string | null>(null);
+
+  const { query, setQuery, filtered: filteredUsers } = useSearch(users, ['display_name', 'username']);
 
   useEffect(() => {
     const loadUsers = async () => {
@@ -94,17 +97,24 @@ export default function ComparePage() {
       <div className="panel">
         <h2>Compare Users</h2>
         <p className="subtle">Select 2-6 users and compare combined totals only.</p>
-        <div className="filters" style={{ marginBottom: 10 }}>
-          <button type="button" onClick={selectAll}>Select All (Max 6)</button>
-          <button type="button" onClick={clearSelected}>Clear</button>
+        <div className="filters" style={{ marginBottom: 10, flexDirection: 'column', alignItems: 'stretch', gap: 10 }}>
+          <SearchInput value={query} onChange={setQuery} placeholder="Search users..." ariaLabel="Search users" />
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button type="button" onClick={selectAll}>Select All (Max 6)</button>
+            <button type="button" onClick={clearSelected}>Clear</button>
+          </div>
         </div>
         <div className="chip-wrap">
-          {users.map((u) => (
+          {filteredUsers.map((u) => (
             <button
               key={u.id}
               className={selected.includes(u.id) ? 'chip chip-active' : 'chip'}
               onClick={() => toggle(u.id)}
+              style={{ display: 'flex', alignItems: 'center', gap: 6 }}
             >
+              {u.avatar_url && (
+                <img src={u.avatar_url} alt="" className="avatar avatar-sm" loading="lazy" />
+              )}
               {u.display_name}
             </button>
           ))}

@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { getTopUsers } from '../api/trackerApi';
 import { deleteUser, getMe, listUsers } from '../api/adminApi';
+import { SearchInput, useSearch } from '../components/SearchInput';
+import { SkeletonTable } from '../components/SkeletonLoader';
 import { formatDuration } from '../utils/time';
 
 export default function UsersPage() {
@@ -11,10 +13,14 @@ export default function UsersPage() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  const { query, setQuery, filtered } = useSearch(rows, ['display_name', 'username']);
 
   useEffect(() => {
     const load = async () => {
       try {
+        setLoading(true);
         const [users, ranked, me] = await Promise.all([listUsers(guildId), getTopUsers(guildId, 'combined'), getMe()]);
         const totalMap: Record<number, number> = {};
         for (const row of ranked) {
@@ -25,6 +31,8 @@ export default function UsersPage() {
         setIsAdmin(me.role === 'admin');
       } catch (err: any) {
         setError(err?.response?.data?.detail || 'Failed to load users');
+      } finally {
+        setLoading(false);
       }
     };
     void load();
@@ -50,35 +58,69 @@ export default function UsersPage() {
     }
   };
 
+  if (loading) {
+    return (
+      <div className="panel">
+        <h2>Users</h2>
+        <SkeletonTable rows={5} />
+      </div>
+    );
+  }
+
   return (
     <div className="panel">
-      <h2>Users</h2>
+      <div className="top-row" style={{ marginBottom: 16 }}>
+        <h2>Users</h2>
+        <SearchInput value={query} onChange={setQuery} placeholder="Search users..." ariaLabel="Search users" />
+      </div>
       {error && <div className="error-box">{error}</div>}
       {message && <div className="success-box">{message}</div>}
-      <div className="table-wrap">
-        <table className="data-table">
-          <thead>
-            <tr>
-              <th>Player</th>
-              <th>Total Playtime</th>
-              {isAdmin && <th>Actions</th>}
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((row) => (
-              <tr key={row.id}>
-                <td><Link to={`/users/${row.id}`}>{row.display_name}</Link></td>
-                <td>{formatDuration(totalsByUserId[row.id] || 0)}</td>
-                {isAdmin && (
-                  <td>
-                    <button type="button" onClick={() => void handleDelete(row.id, row.display_name)}>Delete</button>
-                  </td>
-                )}
+      {filtered.length === 0 ? (
+        <div className="empty-state">
+          <div className="empty-state-icon">👥</div>
+          <div className="empty-state-title">No users found</div>
+          <div className="empty-state-desc">
+            {query ? 'No users match your search.' : 'No users have been tracked yet.'}
+          </div>
+        </div>
+      ) : (
+        <div className="table-wrap">
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>Player</th>
+                <th>Total Playtime</th>
+                {isAdmin && <th>Actions</th>}
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+            </thead>
+            <tbody>
+              {filtered.map((row) => (
+                <tr key={row.id}>
+                  <td>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      {row.avatar_url && (
+                        <img
+                          src={row.avatar_url}
+                          alt=""
+                          className="avatar"
+                          loading="lazy"
+                        />
+                      )}
+                      <Link to={`/users/${row.id}`}>{row.display_name}</Link>
+                    </div>
+                  </td>
+                  <td>{formatDuration(totalsByUserId[row.id] || 0)}</td>
+                  {isAdmin && (
+                    <td>
+                      <button type="button" onClick={() => void handleDelete(row.id, row.display_name)}>Delete</button>
+                    </td>
+                  )}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }

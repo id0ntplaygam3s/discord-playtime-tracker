@@ -3,6 +3,8 @@ import { Link } from 'react-router-dom';
 import { getGameUsers, getTopGames } from '../api/trackerApi';
 import DateRangeTabs from '../components/DateRangeTabs';
 import TopUsersChart from '../charts/TopUsersChart';
+import { SearchInput, useSearch } from '../components/SearchInput';
+import { SkeletonTable } from '../components/SkeletonLoader';
 import { DateRangeKey } from '../types';
 import { selectedGameRangeOptions } from '../utils/dateRanges';
 import { formatDuration } from '../utils/time';
@@ -20,17 +22,23 @@ export default function GamesPage() {
   const [showValues, setShowValues] = useState(true);
   const [loadingBreakdown, setLoadingBreakdown] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
 
   const selectedGame = useMemo(() => rows.find((r) => r.id === selectedGameId), [rows, selectedGameId]);
+
+  const { query, setQuery, filtered } = useSearch(rows, ['name']);
 
   useEffect(() => {
     const load = async () => {
       try {
+        setLoading(true);
         const games = await getTopGames(guildId, 'combined', rowLimit <= 0 ? ALL_ROWS_LIMIT : rowLimit);
         setRows(games);
         setSelectedGameId((current) => (games.some((g: any) => g.id === current) ? current : games[0]?.id || 0));
       } catch (err: any) {
         setError(err?.response?.data?.detail || 'Failed to load games');
+      } finally {
+        setLoading(false);
       }
     };
     void load();
@@ -70,11 +78,23 @@ export default function GamesPage() {
     };
   }, [guildId, selectedGameId, selectedGameRange, selectedFrom, selectedTo]);
 
+  if (loading) {
+    return (
+      <div className="page-grid">
+        <div className="panel">
+          <h2>Games</h2>
+          <SkeletonTable rows={5} />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="page-grid">
       <div className="top-row">
         <h2>Games</h2>
         <div className="filters">
+          <SearchInput value={query} onChange={setQuery} placeholder="Search games..." ariaLabel="Search games" />
           <label style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
             Rows
             <select value={String(rowLimit)} onChange={(e) => setRowLimit(Number(e.target.value))}>
@@ -98,30 +118,38 @@ export default function GamesPage() {
         <div className="panel">
           <h3>Game Totals</h3>
           <div className="subtle" style={{ marginBottom: 10 }}>
-            Showing {rows.length} games. Click any row to view who contributes to that total.
+            Showing {filtered.length} of {rows.length} games. Click any row to view who contributes to that total.
           </div>
-          <div className="table-wrap">
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>Game</th>
-                  <th>Total Playtime</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((row) => (
-                  <tr
-                    key={row.id}
-                    onClick={() => setSelectedGameId(row.id)}
-                    style={{ background: selectedGameId === row.id ? 'rgba(34, 211, 238, 0.12)' : 'transparent', cursor: 'pointer' }}
-                  >
-                    <td><Link to={`/games/${row.id}`}>{row.name}</Link></td>
-                    <td>{formatDuration(row.total_seconds)}</td>
+          {filtered.length === 0 ? (
+            <div className="empty-state">
+              <div className="empty-state-icon">🎮</div>
+              <div className="empty-state-title">No games found</div>
+              <div className="empty-state-desc">No games match your search.</div>
+            </div>
+          ) : (
+            <div className="table-wrap">
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>Game</th>
+                    <th>Total Playtime</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {filtered.map((row) => (
+                    <tr
+                      key={row.id}
+                      onClick={() => setSelectedGameId(row.id)}
+                      style={{ background: selectedGameId === row.id ? 'rgba(34, 211, 238, 0.12)' : 'transparent', cursor: 'pointer' }}
+                    >
+                      <td><Link to={`/games/${row.id}`}>{row.name}</Link></td>
+                      <td>{formatDuration(row.total_seconds)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
 
         <div className="panel">

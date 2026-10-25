@@ -40,10 +40,21 @@ export default function ActivityPage() {
 
       <div className="panel">
         <h2>Currently Playing</h2>
-        {active.length === 0 && <div className="empty">Nobody is currently playing.</div>}
+        {active.length === 0 && (
+          <div className="empty-state">
+            <div className="empty-state-icon">🎮</div>
+            <div className="empty-state-title">No active sessions</div>
+            <div className="empty-state-desc">Nobody is currently playing tracked games.</div>
+          </div>
+        )}
         {active.map((row) => (
           <div className="session-item" key={row.session_id}>
-            <div className="session-user">{row.user_name}</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              {row.avatar_url && (
+                <img src={row.avatar_url} alt="" className="avatar" loading="lazy" />
+              )}
+              <div className="session-user">{row.user_name}</div>
+            </div>
             <div className="session-game">{row.game_name}</div>
             <div className="session-time">Started {dayjs(row.started_at).fromNow()}</div>
           </div>
