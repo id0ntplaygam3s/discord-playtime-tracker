@@ -65,6 +65,13 @@ class DiscordTrackerBot(discord.Client):
         except Exception:
             logger.exception("on_ready_error")
 
+    async def on_resumed(self):
+        try:
+            self.manager.mark_connected(True)
+            logger.info("discord_resumed")
+        except Exception:
+            logger.exception("on_resumed_error")
+
     async def on_disconnect(self):
         try:
             self.manager.mark_connected(False)
